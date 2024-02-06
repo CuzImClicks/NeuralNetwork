@@ -1,17 +1,25 @@
-use std::f64::consts::E;
+mod activation;
+
 use std::ops::Div;
+use crate::activation::sigmoid;
 
 struct Neuron {
     weights: Vec<f64>,
-    bias: f64
+    bias: f64,
+    pre_activation_output: f64
 }
 
 impl Neuron {
-    fn output(&self, inputs: &[f64]) -> f64 {
-        self.activate(dot(&self.weights, inputs)) + self.bias
+    fn new(weights: Vec<f64>, bias: f64) -> Self {
+        Neuron {
+            weights,
+            bias,
+            pre_activation_output: 0.0
+        }
     }
-    fn activate(&self, output: f64) -> f64 {
-        output
+    fn output(&mut self, inputs: &[f64], activation_function: fn(f64) -> f64) -> f64 {
+        self.pre_activation_output = dot(&self.weights, inputs) + self.bias;
+        activation_function(self.pre_activation_output)
     }
 }
 
@@ -20,45 +28,54 @@ struct Layer {
 }
 
 impl Layer {
-    fn propagate(&self, inputs: &[f64]) -> Vec<f64> {
-        self.neurons.iter().map(|neuron|neuron.output(inputs)).collect()
+    fn propagate(&mut self, inputs: &[f64], activation_function: fn(f64) -> f64) -> Vec<f64> {
+        self.neurons.iter_mut().map(|mut neuron|neuron.output(inputs, activation_function)).collect()
     }
 }
 
 struct NeuralNetwork {
-    layers: Vec<Layer>
+    layers: Vec<Layer>,
+    activation_function: fn(f64) -> f64
 }
 
 impl NeuralNetwork {
-    pub fn evaluate(&self, inputs: &[f64]) -> Vec<f64> {
-        self.layers.iter().fold(inputs.to_vec(), |acc, layer| layer.propagate(&acc))
+    pub fn evaluate(&mut self, inputs: &[f64]) -> Vec<f64> {
+        self.layers.iter_mut().fold(inputs.to_vec(), |acc, layer| layer.propagate(&acc, self.activation_function))
     }
-    pub fn train(&mut self, training_data: Vec<(Vec<f64>, Vec<f64>)>, epochs: usize, learning_rate: f64, loss_function: fn(&[f64], &[f64]) -> f64) {
+    pub fn train(&mut self,
+                 training_data: Vec<(Vec<f64>, Vec<f64>)>,
+                 epochs: usize,
+                 learning_rate: f64,
+                 loss_function: fn(&[f64], &[f64]) -> f64,
+                 activation_function_derivative: fn(f64) -> f64
+    ) {
+
         for _ in 0..epochs {
             for (inputs, expected) in training_data.iter() {
                 let outputs = self.evaluate(inputs);
 
                 let loss = loss_function(&outputs, expected);
-                println!("{}", loss);
+                self.backpropagate(inputs, &outputs, expected, activation_function_derivative);
             }
         }
-    }
-    fn backpropagate(&self, predicted: &[f64], actual: &[f64]) {
 
     }
+    fn backpropagate(&mut self, inputs: &[f64], outputs: &[f64], expected: &[f64], activation_function_derivative: fn(f64) -> f64) {
+        let mut deltas: Vec<f64> = Vec::new();
 
-    fn gradients(predicted: &[f64], actual: &[f64], fun: fn((&f64, &f64)) -> f64) -> Vec<f64> {
-        predicted.iter().zip(actual).map(fun).collect()
+        for (output, &actual) in outputs.iter().zip(expected) {
+            let delta = (output - actual) * activation_function_derivative(*output);
+            deltas.push(delta);
+        }
+
+        let current_inputs = outputs;
+        for (i, layer) in self.layers.iter().enumerate().rev() {
+            let new_deltas = layer.neurons
+        }
+
     }
 }
 
-fn sigmoid(x: f64) -> f64 {
-    1.0 / (1.0 + E.powf(-x))
-}
-
-fn sigmoid_derivative(x: f64) -> f64 {
-    x * (1.0 - x)
-}
 
 fn dot(one: &[f64], two: &[f64]) -> f64 {
     one.iter().zip(two).map(|(x, y)| x * y).sum()
@@ -68,7 +85,7 @@ fn dot(one: &[f64], two: &[f64]) -> f64 {
 fn mean_squared_error(output: &[f64], predicted: &[f64]) -> f64 {
     return output.iter()
         .zip(predicted)
-        .map(|(act, pred)| (pred - act).powi(2) )
+        .map(|(act, pred)| (act - pred).powi(2) )
         .sum::<f64>().div(output.len() as f64);
 }
 
@@ -76,18 +93,18 @@ fn mean_squared_error(output: &[f64], predicted: &[f64]) -> f64 {
 fn main() {
     let first_layer = Layer {
         neurons: vec![
-            Neuron { weights: vec![0.15, 0.20], bias: 0.35 },
-            Neuron { weights: vec![0.25, 0.30], bias: 0.35 },
+            Neuron::new(vec![0.15, 0.20], 0.35),
+            Neuron::new(vec![0.25, 0.30], 0.35),
         ],
     };
 
     let second_layer = Layer {
         neurons: vec![
-            Neuron { weights: vec![0.40, 0.45], bias: 0.60 },
-            Neuron { weights: vec![0.50, 0.55], bias: 0.60 },
+            Neuron::new(vec![0.40, 0.45], 0.60),
+            Neuron::new(vec![0.50, 0.55], 0.60),
         ],
     };
-    let mut neural_net = NeuralNetwork { layers: vec![first_layer, second_layer]};
+    let mut neural_net = NeuralNetwork { layers: vec![first_layer, second_layer], activation_function: sigmoid};
     //println!("{:?}", neural_net.evaluate(&[1_f64, 2_f64, 3_f64]));
-    neural_net.train(vec![(vec![1_f64, 2_f64, 3_f64], vec![1.6_f64, 1.9_f64])], 10, 0.3, mean_squared_error)
+    //neural_net.train(vec![(vec![1_f64, 2_f64, 3_f64], vec![1.6_f64, 1.9_f64])], 10, 0.3, mean_squared_error, sigmoid)
 }
