@@ -45,3 +45,5 @@ inputs, possibly with some added noise.<br>
 [Why naming variables is important](https://github.com/MikhailKravets/NeuroFlow/blob/master/src/lib.rs)
 
 [Good implementation but convoluted](https://github.com/jackm321/RustNN/blob/master/src/lib.rs)
+
+[Better implementation didnt try it yet](https://github.com/Vercaca/NN-Backpropagation/blob/master/neural_network.py#L28)
