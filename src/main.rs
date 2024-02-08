@@ -32,8 +32,8 @@ struct Layer {
 }
 
 impl Layer {
-    fn propagate(&mut self, inputs: &[f64], activation_function: fn(f64) -> f64) -> Vec<f64> {
-        self.neurons.iter_mut().map(|mut neuron|neuron.output(inputs, activation_function)).collect()
+    fn evaluate(&mut self, inputs: &[f64], activation_function: fn(f64) -> f64) -> Vec<f64> {
+        self.neurons.iter_mut().map(|neuron|neuron.output(inputs, activation_function)).collect()
     }
 }
 
@@ -43,14 +43,14 @@ struct NeuralNetwork {
 }
 
 impl NeuralNetwork {
-    pub fn evaluate(&mut self, inputs: &[f64]) -> Vec<f64> {
-        self.layers.iter_mut().fold(inputs.to_vec(), |acc, layer| layer.propagate(&acc, self.activation_function))
+    pub fn propagate(&mut self, inputs: &[f64]) -> Vec<f64> {
+        self.layers.iter_mut().fold(inputs.to_vec(), |acc, layer| layer.evaluate(&acc, self.activation_function))
     }
 
     pub fn train(&mut self, training_data: Vec<(Vec<f64>, Vec<f64>)>,
                  epochs: usize,
                  learning_rate: f64) {
-        self.fit(training_data, epochs, learning_rate, mean_squared_error, activation::sigmoid_derivative)
+        self.fit(training_data, epochs, learning_rate, mean_squared_error, sigmoid_derivative)
     }
 
     pub fn fit(&mut self,
@@ -63,12 +63,12 @@ impl NeuralNetwork {
 
         for epoch in 0..epochs {
             println!("Epoch: {}", epoch+1);
-            println!("1 0 -> {:?}", self.evaluate(&[1f64, 0f64]));
-            println!("0 1 -> {:?}", self.evaluate(&[0f64, 1f64]));
-            println!("0 0 -> {:?}", self.evaluate(&[0f64, 0f64]));
-            println!("1 1 -> {:?}", self.evaluate(&[1f64, 1f64]));
+            println!("1 0 -> {:?}", self.propagate(&[1f64, 0f64]));
+            println!("0 1 -> {:?}", self.propagate(&[0f64, 1f64]));
+            println!("0 0 -> {:?}", self.propagate(&[0f64, 0f64]));
+            println!("1 1 -> {:?}", self.propagate(&[1f64, 1f64]));
             for (step, (inputs, expected)) in training_data.iter().enumerate() {
-                let outputs = self.evaluate(inputs);
+                let outputs = self.propagate(inputs);
 
                 let loss = loss_function(&outputs, expected);
                  //println!("Step {} - Loss: {}", step, loss);
@@ -78,6 +78,7 @@ impl NeuralNetwork {
         }
 
     }
+
     fn backpropagate(&mut self, inputs: &[f64], outputs: &[f64], expected: &[f64], learning_rate: f64, activation_function_derivative: fn(f64) -> f64) {
         let mut deltas: Vec<f64> = Vec::new();
 
@@ -97,9 +98,9 @@ impl NeuralNetwork {
                     error += delta * neuron.weights[j];
                 }
                 new_deltas.push(error * activation_function_derivative(neuron.pre_activation_output));
-                //for (j, delta) in deltas.iter().enumerate() {
-                //    neuron.weights[j] += learning_rate * delta * neuron.inputs[j]; // FIXME: ([-0.4122544985649039, -0.35], 0.029301556330380576) doesnt adjust the second weight
-                //}
+                for (j, delta) in deltas.iter().enumerate() {
+                    neuron.weights[j] += learning_rate * delta * neuron.inputs[j]; // FIXME: ([-0.4122544985649039, -0.35], 0.029301556330380576) doesnt adjust the second weight
+                }
 
                 neuron.bias -= learning_rate * error;
             }
@@ -136,7 +137,7 @@ fn main() {
         ],
     };
     let mut neural_net = NeuralNetwork { layers: vec![first_layer, second_layer], activation_function: sigmoid};
-    println!("{:?}", neural_net.evaluate(&[1f64, 0f64]));
+    println!("{:?}", neural_net.propagate(&[1f64, 0f64]));
     neural_net.fit(vec![(vec![0f64, 0f64], vec![0f64]), (vec![1f64, 0f64], vec![1f64]), (vec![0f64, 1f64], vec![1f64]), (vec![1f64, 1f64], vec![0f64])], 1000, 1f64, mean_squared_error, sigmoid_derivative);
 
     //print out the layers and the weights and biases of the neurons
@@ -146,9 +147,9 @@ fn main() {
         }
         println!()
     }
-    println!("1 0 -> {:?}", neural_net.evaluate(&[1f64, 0f64]));
-    println!("0 1 -> {:?}", neural_net.evaluate(&[0f64, 1f64]));
-    println!("0 0 -> {:?}", neural_net.evaluate(&[0f64, 0f64]));
-    println!("1 1 -> {:?}", neural_net.evaluate(&[1f64, 1f64]));
+    println!("1 0 -> {:?}", neural_net.propagate(&[1f64, 0f64]));
+    println!("0 1 -> {:?}", neural_net.propagate(&[0f64, 1f64]));
+    println!("0 0 -> {:?}", neural_net.propagate(&[0f64, 0f64]));
+    println!("1 1 -> {:?}", neural_net.propagate(&[1f64, 1f64]));
 
 }
