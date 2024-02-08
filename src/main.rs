@@ -62,11 +62,11 @@ impl NeuralNetwork {
     ) {
 
         for epoch in 0..epochs {
-            println!("Epoch: {}", epoch+1);
-            println!("1 0 -> {:?}", self.propagate(&[1f64, 0f64]));
-            println!("0 1 -> {:?}", self.propagate(&[0f64, 1f64]));
-            println!("0 0 -> {:?}", self.propagate(&[0f64, 0f64]));
-            println!("1 1 -> {:?}", self.propagate(&[1f64, 1f64]));
+            //println!("Epoch: {}", epoch+1);
+            //println!("1 0 -> {:?}", self.propagate(&[1f64, 0f64]));
+            //println!("0 1 -> {:?}", self.propagate(&[0f64, 1f64]));
+            //println!("0 0 -> {:?}", self.propagate(&[0f64, 0f64]));
+            //println!("1 1 -> {:?}", self.propagate(&[1f64, 1f64]));
             for (step, (inputs, expected)) in training_data.iter().enumerate() {
                 let outputs = self.propagate(inputs);
 
@@ -80,32 +80,7 @@ impl NeuralNetwork {
     }
 
     fn backpropagate(&mut self, inputs: &[f64], outputs: &[f64], expected: &[f64], learning_rate: f64, activation_function_derivative: fn(f64) -> f64) {
-        let mut deltas: Vec<f64> = Vec::new();
 
-        //println!("Inputs:   {:?} -> {:?}", inputs, expected);
-        //println!("Outputs:  {:?}", outputs);
-
-        for (output, &actual) in outputs.iter().zip(expected) {
-            let delta = (actual - output) * activation_function_derivative(*output);
-            deltas.push(delta);
-        }
-        //println!("Deltas:   {:?}", deltas);
-        for layer in self.layers.iter_mut().rev() {
-            let mut new_deltas: Vec<f64> = Vec::new();
-            for neuron in layer.neurons.iter_mut() {
-                let mut error = 0.0;
-                for (j, delta) in deltas.iter().enumerate() {
-                    error += delta * neuron.weights[j];
-                }
-                new_deltas.push(error * activation_function_derivative(neuron.pre_activation_output));
-                for (j, delta) in deltas.iter().enumerate() {
-                    neuron.weights[j] += learning_rate * delta * neuron.inputs[j]; // FIXME: ([-0.4122544985649039, -0.35], 0.029301556330380576) doesnt adjust the second weight
-                }
-
-                neuron.bias -= learning_rate * error;
-            }
-            deltas = new_deltas;
-        }
     }
 }
 
