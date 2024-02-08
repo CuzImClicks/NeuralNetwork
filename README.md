@@ -47,3 +47,10 @@ inputs, possibly with some added noise.<br>
 [Good implementation but convoluted](https://github.com/jackm321/RustNN/blob/master/src/lib.rs)
 
 [Better implementation didnt try it yet](https://github.com/Vercaca/NN-Backpropagation/blob/master/neural_network.py#L28)
+
+[Gradient Descent](https://en.wikipedia.org/wiki/Gradient_descent)
+
+
+```math
+a_{n+1}=a_{n} - \gamma \nabla F(a)
+```
