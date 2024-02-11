@@ -63,7 +63,6 @@ impl NeuralNetwork {
         for _ in 0..epochs {
             training_data.shuffle(&mut rand::thread_rng());
             for batch in training_data.windows(batch_size) {
-                dbg!(&batch);
                 self.update_weights_biases(batch, learning_rate);
             }
         }
@@ -103,14 +102,13 @@ impl NeuralNetwork {
         let nabla_w_len = nabla_w.len();
         nabla_w[nabla_w_len - 1usize] = delta.dot(&activations[activations.len() - 2].t());
 
-        for l in 2..self.weights.len() {
+        for l in 2..self.weights.len() +1 { // OMG num layers is weights + 1 because the input layer counts
             let z = &zs[zs.len() - l];
             let sp = z.mapv(sigmoid_prime);
             let delta = self.weights[self.weights.len() - l + 1].t().dot(&delta) * sp;
             nabla_b[nabla_b_len - l] = delta.clone();
             nabla_w[nabla_w_len - l] = delta.dot(&activations[activations.len() - l - 1].t());
         }
-
         (nabla_w, nabla_b)
     }
 }
@@ -156,7 +154,7 @@ fn main() {
     n.stochastic_gradient_descent(vec![(arr2(&[[1.0], [0.0]]), arr2(&[[1.0]])),
                                        (arr2(&[[0.0], [1.0]]), arr2(&[[1.0]])),
                                        (arr2(&[[1.0], [1.0]]), arr2(&[[0.0]])),
-                                       (arr2(&[[0.0], [0.0]]), arr2(&[[0.0]]))], 1, 4, 0.1);
+                                       (arr2(&[[0.0], [0.0]]), arr2(&[[0.0]]))], 1000000, 4, 0.1);
 
     for (i, w) in n.weights.iter().enumerate() {
         println!("{}", i);
@@ -175,21 +173,4 @@ fn main() {
     print_matrix(&n.feedforward(arr2(&[[1.0], [1.0]])));
     println!("[0.0], [0.0]");
     print_matrix(&n.feedforward(arr2(&[[0.0], [0.0]])));
-
-    //let a: Array2<f64> = arr2(&[[0.41, 0.50], [0.94, 0.57], [0.24, 0.50]]);
-    //let b: Array2<f64> = arr2(&[[1.0, 2.0, 5.0], [3.0, 4.0, 6.0]]);
-    //let c: Array2<f64> = arr2(&[[0.24, 0.94, 0.34]]);
-    //println!();
-    //print_matrix(&a);
-    //println!();
-    //print_matrix(&b);
-    //println!();
-    //let d: Array2<f64> = a.dot(&b);
-    //print_matrix(&d);
-    //println!();
-    //print_matrix(&c);
-    //println!();
-    //let e: Array2<f64> = c.dot(&d);
-    //print_matrix(&e);
-    //println!();
 }

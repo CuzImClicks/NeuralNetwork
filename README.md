@@ -50,6 +50,10 @@ inputs, possibly with some added noise.<br>
 
 [Gradient Descent](https://en.wikipedia.org/wiki/Gradient_descent)
 
+[Visualize Neural Network](https://alexlenail.me/NN-SVG/index.html)
+[Visualize Tflite models](https://netron.app/)
+
+
 
 ```math
 a_{n+1}=a_{n} - \gamma \nabla F(a)
