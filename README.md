@@ -54,3 +54,12 @@ inputs, possibly with some added noise.<br>
 ```math
 a_{n+1}=a_{n} - \gamma \nabla F(a)
 ```
+
+```rust
+fn main() {
+  let mut n = NeuralNetwork {
+    weights: vec ! [arr2( & [[-6.48660725, -6.62301231], [4.66472526, 4.68940699]]), arr2( & [[-9.6819727, -10.03086451]])],
+    biases: vec ! [arr2( &[[2.59613863], [-7.27095101]]), arr2( & [[4.87653359]])],
+  };
+}
+```
