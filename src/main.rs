@@ -55,29 +55,38 @@ impl NeuralNetwork {
         let mut training_data = training_data;
         let mut nabla_w: Vec<Array2<f64>> = self.weights.iter().map(|w|Array2::zeros(w.dim())).collect();
         let mut nabla_b: Vec<Array2<f64>> = self.biases.iter().map(|w|Array2::zeros(w.dim())).collect();
+        let mut delta_nabla_w: Vec<Array2<f64>> = self.weights.iter().map(|w|Array2::zeros(w.dim())).collect();
+        let mut delta_nabla_b: Vec<Array2<f64>> = self.biases.iter().map(|w|Array2::zeros(w.dim())).collect();
         for _ in 0..epochs {
             training_data.shuffle(&mut rand::thread_rng());
             for batch in training_data.chunks(batch_size) {
-                self.update_weights_biases(batch, learning_rate, &mut nabla_w, &mut nabla_b);
+                self.update_weights_biases(batch, learning_rate, &mut nabla_w, &mut nabla_b, &mut delta_nabla_w, &mut delta_nabla_b);
             }
         }
     }
 
-    fn update_weights_biases(&mut self, batch: &[(Array2<f64>, Array2<f64>)], learning_rate: f64, nabla_w: &mut [Array2<f64>], nabla_b: &mut [Array2<f64>]) {
+    fn update_weights_biases(&mut self,
+                             batch: &[(Array2<f64>, Array2<f64>)],
+                             learning_rate: f64,
+                             nabla_w: &mut [Array2<f64>],
+                             nabla_b: &mut [Array2<f64>],
+                             delta_nabla_w: &mut [Array2<f64>],
+                             delta_nabla_b: &mut [Array2<f64>],
+    ) {
         reset_matrix(nabla_w);
         reset_matrix(nabla_b);
-        let mut delta_nabla_w = mirror_zeros(&self.weights);
-        let mut delta_nabla_b = mirror_zeros(&self.biases);
+        reset_matrix(delta_nabla_w);
+        reset_matrix(delta_nabla_b);
         for (o, t) in batch {
-            self.backpropagation(o, t, &mut delta_nabla_w, &mut delta_nabla_b);
+            self.backpropagation(o, t, delta_nabla_w, delta_nabla_b);
             for (nw, dnw) in nabla_w.iter_mut().zip(delta_nabla_w.iter()) {
                 *nw += dnw;
             }
             for (nb, dnb) in nabla_b.iter_mut().zip(delta_nabla_b.iter()) {
                 *nb += dnb;
             }
-            reset_matrix(&mut delta_nabla_w);
-            reset_matrix(&mut delta_nabla_b);
+            reset_matrix(delta_nabla_w);
+            reset_matrix(delta_nabla_b);
         }
 
         let batch_size = batch.len() as f64;
@@ -102,7 +111,8 @@ impl NeuralNetwork {
             let mut z = w.dot(&activation);
             z += b;
             zs.push(z.clone());
-            activation = z.mapv(sigmoid);
+            z.mapv_inplace(sigmoid);
+            activation = z;
             activations.push(activation.clone());
         }
 
