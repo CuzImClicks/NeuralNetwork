@@ -6,7 +6,7 @@ use std::fmt::Display;
 use ndarray::{arr2, Array2, ArrayBase, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
 use rand::Rng;
-use crate::activation::{sigmoid, sigmoid_prime};
+use crate::activation::{leaky_relu, leaky_relu_prime};
 
 struct NeuralNetwork {
     weights: Vec<Array2<f64>>,
@@ -19,10 +19,16 @@ fn gen_random_matrix(rows: usize, cols: usize) -> Array2<f64>
     Array2::from_shape_fn((rows, cols), |_| rng.gen_range(-1.0..1.0))
 }
 
-
-
 fn cost_derivative(output: &ArrayBase<OwnedRepr<f64>, Ix2>, truth: &Array2<f64>) -> Array2<f64> {
     output - truth
+}
+
+fn mean_squared_error(output: &[f64], truth: &[f64]) -> f64 {
+    output
+        .iter()
+        .zip(truth.iter())
+        .map(|(o, t)| (o - t).powi(2))
+        .sum::<f64>() / (output.len() as f64)
 }
 
 impl NeuralNetwork {
@@ -36,28 +42,39 @@ impl NeuralNetwork {
         NeuralNetwork::new(weights, biases)
     }
 
-    fn feedforward(&self, inputs: Array2<f64>) -> Array2<f64> {
+    fn feedforward(&self, inputs: &Array2<f64>) -> Array2<f64> {
         let mut result = inputs.to_owned();
         for (layer, bias) in self.weights.iter().zip(self.biases.iter()) {
             result = layer.dot(&result);
             result += bias;
-            result.mapv_inplace(sigmoid);
+            result.mapv_inplace(leaky_relu);
         }
         result
     }
 
-    fn stochastic_gradient_descent(&mut self,
-                                   training_data: Vec<(Array2<f64>, Array2<f64>)>,
-                                   epochs: usize,
-                                   batch_size: usize,
-                                   learning_rate: f64
+    fn validate(&self, validation_data: &[(Array2<f64>, f64)]) -> f64 {
+        let truth: Vec<f64> = validation_data.iter().map(|(_, t)| *t).collect();
+        let output: Vec<f64> = validation_data
+            .iter()
+            .map(|(i, _)| self.feedforward(i)[[0, 0]])
+            .collect();
+
+        mean_squared_error(&output, &truth)
+    }
+
+    fn train(&mut self,
+             training_data: Vec<(Array2<f64>, Array2<f64>)>,
+             epochs: usize,
+             batch_size: usize,
+             learning_rate: f64
     ) {
         let mut training_data = training_data;
         let mut nabla_w: Vec<Array2<f64>> = self.weights.iter().map(|w|Array2::zeros(w.dim())).collect();
         let mut nabla_b: Vec<Array2<f64>> = self.biases.iter().map(|w|Array2::zeros(w.dim())).collect();
         let mut delta_nabla_w: Vec<Array2<f64>> = self.weights.iter().map(|w|Array2::zeros(w.dim())).collect();
         let mut delta_nabla_b: Vec<Array2<f64>> = self.biases.iter().map(|w|Array2::zeros(w.dim())).collect();
-        for _ in 0..epochs {
+
+        for epoch in 0..epochs {
             training_data.shuffle(&mut rand::thread_rng());
             for batch in training_data.chunks(batch_size) {
                 self.update_weights_biases(batch, learning_rate, &mut nabla_w, &mut nabla_b, &mut delta_nabla_w, &mut delta_nabla_b);
@@ -111,14 +128,14 @@ impl NeuralNetwork {
             let mut z = w.dot(&activation);
             z += b;
             zs.push(z.clone());
-            z.mapv_inplace(sigmoid);
+            z.mapv_inplace(leaky_relu);
             activation = z;
             activations.push(activation.clone());
         }
 
         // backward pass
         let mut delta = cost_derivative(activations.last().unwrap(), truth);
-        delta.zip_mut_with(&zs.pop().unwrap(), |d, s| *d *= sigmoid_prime(*s));
+        delta.zip_mut_with(&zs.pop().unwrap(), |d, s| *d *= leaky_relu_prime(*s));
         let nabla_b_len = nabla_b.len();
         nabla_b[nabla_b_len - 1].assign(&delta);
         let nabla_w_len = nabla_w.len();
@@ -126,7 +143,7 @@ impl NeuralNetwork {
 
         for l in (1..self.weights.len()).rev() {
             let mut z = zs.pop().unwrap();
-            z.mapv_inplace(sigmoid_prime);
+            z.mapv_inplace(leaky_relu_prime);
             delta = self.weights[l].t().dot(&delta) * z;
             nabla_b[l - 1].assign(&delta);
             nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
@@ -178,24 +195,16 @@ fn gen_xor_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
 }
 
 fn main() {
-    let mut n = NeuralNetwork::new(
-        vec![
-            arr2(&[[1.34, -2.04], [-5.95, 5.93], [5.30, -5.39]]),
-            arr2(&[[1.17, 8.76, 8.29]]),
-        ],
-        vec![
-            arr2(&[[-1.01], [-3.34], [-3.00]]),
-            arr2(&[[-4.52]]),
-        ]
-    ); // initialise_random(vec![2, 3, 1]);
+    let mut n = NeuralNetwork::initialise_random(vec![1, 16, 8, 1]);
 
     let start = std::time::Instant::now();
 
-    n.stochastic_gradient_descent(gen_xor_dataset(), 100000, 5, 0.1);
+    let num_epochs: usize = 5000;
+    n.train(gen_x2_dataset(), num_epochs, 5, 0.1);
 
     let elapsed = start.elapsed();
     println!("Elapsed: {:?}", elapsed);
-    println!("{:.2?} epochs/s", 100000f32 / elapsed.as_secs_f32());
+    println!("{:.2?} epochs/s", (num_epochs as f32) / elapsed.as_secs_f32());
 
     println!("\nWeights: ");
     for (i, w) in n.weights.iter().enumerate() {
@@ -209,11 +218,10 @@ fn main() {
         print_matrix(b);
     }
 
-
     println!("\nResults:");
 
-    for (i, (input, output)) in gen_xor_dataset().iter().enumerate() {
-        let result = n.feedforward(input.clone());
+    for (_, (input, output)) in gen_x2_dataset().iter().enumerate() {
+        let result = n.feedforward(&input);
         print!("Input: ");
         print_matrix(input);
         print!("Expected: ");
@@ -221,5 +229,12 @@ fn main() {
         print!("Got: ");
         print_matrix(&result);
         println!();
+    }
+
+    let mut i = 0.0;
+    while i < 10.0 {
+        let result = n.feedforward(&arr2(&[[i]]));
+        println!("{} -> {}", i, result[[0, 0]]);
+        i += 0.1;
     }
 }
