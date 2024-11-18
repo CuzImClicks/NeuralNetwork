@@ -39,9 +39,11 @@ impl NeuralNetwork {
     }
 
     fn feedforward(&self, inputs: Array2<f64>) -> Array2<f64> {
-        let mut result = inputs;
+        let mut result = inputs.to_owned();
         for (layer, bias) in self.weights.iter().zip(self.biases.iter()) {
-            result = (&layer.dot(&result) + bias).mapv(sigmoid);
+            result = layer.dot(&result);
+            result += bias;
+            result.mapv_inplace(sigmoid);
         }
         result
     }
@@ -53,33 +55,49 @@ impl NeuralNetwork {
                                    learning_rate: f64
     ) {
         let mut training_data = training_data;
+        let mut nabla_w: Vec<Array2<f64>> = self.weights.iter().map(|w|Array2::zeros(w.dim())).collect();
+        let mut nabla_b: Vec<Array2<f64>> = self.biases.iter().map(|w|Array2::zeros(w.dim())).collect();
         for _ in 0..epochs {
             training_data.shuffle(&mut rand::thread_rng());
             for batch in training_data.chunks(batch_size) {
-                self.update_weights_biases(batch, learning_rate);
+                self.update_weights_biases(batch, learning_rate, &mut nabla_w, &mut nabla_b);
             }
         }
     }
 
-    fn update_weights_biases(&mut self, batch: &[(Array2<f64>, Array2<f64>)], learning_rate: f64) {
-        let mut nabla_w: Vec<Array2<f64>> = mirror_zeros(&self.weights);
-        let mut nabla_b: Vec<Array2<f64>> = mirror_zeros(&self.biases);
+    fn update_weights_biases(&mut self, batch: &[(Array2<f64>, Array2<f64>)], learning_rate: f64, nabla_w: &mut [Array2<f64>], nabla_b: &mut [Array2<f64>]) {
+        reset_matrix(nabla_w);
+        reset_matrix(nabla_b);
+        let mut delta_nabla_w = mirror_zeros(&self.weights);
+        let mut delta_nabla_b = mirror_zeros(&self.biases);
         for (o, t) in batch {
-            let (delta_nabla_w, delta_nabla_b) = self.backpropagation(o, t);
-            nabla_w = nabla_w.iter().zip(delta_nabla_w).map(|(nw, dnw)| nw + dnw).collect();
-            nabla_b = nabla_b.iter().zip(delta_nabla_b).map(|(nb, dnb)| nb + dnb).collect();
+            self.backpropagation(o, t, &mut delta_nabla_w, &mut delta_nabla_b);
+            for (nw, dnw) in nabla_w.iter_mut().zip(delta_nabla_w.iter()) {
+                *nw += dnw;
+            }
+            for (nb, dnb) in nabla_b.iter_mut().zip(delta_nabla_b.iter()) {
+                *nb += dnb;
+            }
+            reset_matrix(&mut delta_nabla_w);
+            reset_matrix(&mut delta_nabla_b);
         }
 
-        self.weights = self.weights.iter().zip(nabla_w.iter()).map(|(w, nw)| w - (learning_rate / batch.len() as f64) * nw).collect();
-        self.biases = self.biases.iter().zip(nabla_b.iter()).map(|(b, nb)| b - (learning_rate / batch.len() as f64) * nb).collect();
+        let batch_size = batch.len() as f64;
+        let l_rate = learning_rate / batch_size;
+        for (w, nw) in self.weights.iter_mut().zip(nabla_w.iter()) {
+            w.scaled_add(-l_rate, nw);
+        }
+        for (b, nb) in self.biases.iter_mut().zip(nabla_b.iter()) {
+            b.scaled_add(-l_rate, nb);
+        }
     }
 
-    fn backpropagation(&mut self, input: &Array2<f64>, truth: &Array2<f64>) -> (Vec<Array2<f64>>, Vec<Array2<f64>>) {
-        let mut nabla_w: Vec<Array2<f64>> = mirror_zeros(&self.weights);
-        let mut nabla_b: Vec<Array2<f64>> = mirror_zeros(&self.biases);
+    fn backpropagation(&mut self, input: &Array2<f64>, truth: &Array2<f64>, nabla_w: &mut [Array2<f64>], nabla_b: &mut [Array2<f64>]) {
+        let num_layers = self.weights.len();
         let mut activation = input.clone();
-        let mut activations: Vec<Array2<f64>> = vec![activation.clone()];
-        let mut zs = vec![];
+        let mut activations: Vec<Array2<f64>> = Vec::with_capacity(num_layers + 1);
+        activations.push(activation.clone());
+        let mut zs = Vec::with_capacity(num_layers);
 
         // feedforward
         for (w, b) in self.weights.iter().zip(self.biases.iter()) {
@@ -103,7 +121,6 @@ impl NeuralNetwork {
             nabla_b[l - 1] = delta.clone();
             nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
         }
-        (nabla_w, nabla_b)
     }
 }
 
@@ -118,6 +135,12 @@ fn print_matrix<T: Display>(matrix: &Array2<T>) {
 
 fn mirror_zeros<O: num_traits::Zero + Clone>(i: &[Array2<O>]) -> Vec<Array2<O>> {
     i.iter().map(|x| Array2::zeros(x.dim())).collect()
+}
+
+fn reset_matrix<O: num_traits::Zero + Clone>(i: &mut [Array2<O>]) {
+    for x in i.iter_mut() {
+        x.fill(O::zero());
+    }
 }
 
 fn gen_x2_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
@@ -149,11 +172,11 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    n.stochastic_gradient_descent(gen_xor_dataset(), 1000000, 5, 0.1);
+    n.stochastic_gradient_descent(gen_xor_dataset(), 100000, 5, 0.1);
 
     let elapsed = start.elapsed();
     println!("Elapsed: {:?}", elapsed);
-    println!("{:.2?} epochs/s", 1000000f32 / elapsed.as_secs_f32());
+    println!("{:.2?} epochs/s", 100000f32 / elapsed.as_secs_f32());
 
     println!("\nWeights: ");
     for (i, w) in n.weights.iter().enumerate() {

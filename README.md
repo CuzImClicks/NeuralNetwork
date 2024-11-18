@@ -1,6 +1,34 @@
 
 ### Neural Network
 
+### 0. base
+Elapsed: 22.2500019s
+44943.82 epochs/s
+
+### 2. zs with_capacity
+
+Elapsed: 2.2176342s
+45093.10 epochs/s
+
+### 3. activation inline
+
+Elapsed: 2.1973911s
+45508.52 epochs/s
+
+### 4. single allocation for nabla_w and nabla_b
+
+Elapsed: 2.0689128s
+48334.57 epochs/s
+
+### 5. stop activations from growing inside a loop
+
+Elapsed: 843.3289ms
+118577.70 epochs/s
+
+### 6. stop allocating delta_nabla_w and delta_nabla_b inside a loop
+
+Elapsed: 783.4655ms
+127638.05 epochs/s
 
 ---
 - [ ] Files

@@ -1,8 +1,10 @@
 
+#[inline(always)]
 pub fn sigmoid(x: f64) -> f64 {
     1.0 / (1.0 + (-x).exp())
 }
 
+#[inline(always)]
 pub fn sigmoid_prime(x: f64) -> f64 {
     sigmoid(x) * (1.0 - sigmoid(x))
 }
