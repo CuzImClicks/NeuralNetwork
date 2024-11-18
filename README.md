@@ -57,16 +57,18 @@ Elapsed: 639.0349ms
 
 
 ```rust
-let mut n = NeuralNetwork::new(
-        vec![
-            arr2(&[[1.34, -2.04], [-5.95, 5.93], [5.30, -5.39]]),
-            arr2(&[[1.17, 8.76, 8.29]]),
+fn main() {
+    let mut n = NeuralNetwork::new(
+        vec ![
+            arr2( & [[1.34, - 2.04], [ - 5.95, 5.93], [5.30, - 5.39]]),
+            arr2( & [[1.17, 8.76, 8.29]]),
         ],
-        vec![
-            arr2(&[[-1.01], [-3.34], [-3.00]]),
-            arr2(&[[-4.52]]),
+        vec ! [
+            arr2( & [[- 1.01], [ - 3.34], [ - 3.00]]),
+            arr2( & [[ - 4.52]]),
         ]
     ); 
+}
 ```
 
 ---
@@ -74,9 +76,9 @@ let mut n = NeuralNetwork::new(
   - [ ] Saving
   - [ ] Loading
 
-- [ ] Training
-  - [ ] Backpropagation
-  - [ ] Gradient Descent
+- [x] Training
+  - [x] Backpropagation
+  - [x] Gradient Descent
   
 - [ ] Datasets
   - [ ] Loading
@@ -91,6 +93,7 @@ let mut n = NeuralNetwork::new(
 - [ ] Optimizers
   - [ ] GPU?
   - [ ] Multi-threading?
+!!!
 
 ---
 Linear Regression
