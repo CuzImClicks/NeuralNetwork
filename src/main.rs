@@ -13,8 +13,6 @@ struct NeuralNetwork {
     biases: Vec<Array2<f64>>,
 }
 
-// np.zeros => ndarray::Array2::zeros()
-
 fn gen_random_matrix(rows: usize, cols: usize) -> Array2<f64>
 {
     let mut rng = rand::thread_rng();
@@ -101,14 +99,16 @@ impl NeuralNetwork {
 
         // feedforward
         for (w, b) in self.weights.iter().zip(self.biases.iter()) {
-            let z = w.dot(&activation) + b;
+            let mut z = w.dot(&activation);
+            z += b;
             zs.push(z.clone());
             activation = z.mapv(sigmoid);
             activations.push(activation.clone());
         }
 
         // backward pass
-        let mut delta = cost_derivative(activations.last().unwrap().clone(), truth) * zs.last().unwrap().mapv(sigmoid_prime);
+        let mut delta = cost_derivative(activations.last().unwrap().clone(), truth);
+        delta.zip_mut_with(&zs.last().unwrap(), |d, s| *d *= sigmoid_prime(*s));
         let nabla_b_len = nabla_b.len();
         nabla_b[nabla_b_len - 1] = delta.clone();
         let nabla_w_len = nabla_w.len();
@@ -168,7 +168,16 @@ fn gen_xor_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
 }
 
 fn main() {
-    let mut n = NeuralNetwork::initialise_random(vec![2, 3, 1]);
+    let mut n = NeuralNetwork::new(
+        vec![
+            arr2(&[[1.34, -2.04], [-5.95, 5.93], [5.30, -5.39]]),
+            arr2(&[[1.17, 8.76, 8.29]]),
+        ],
+        vec![
+            arr2(&[[-1.01], [-3.34], [-3.00]]),
+            arr2(&[[-4.52]]),
+        ]
+    ); // initialise_random(vec![2, 3, 1]);
 
     let start = std::time::Instant::now();
 

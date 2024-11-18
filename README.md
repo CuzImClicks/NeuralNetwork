@@ -30,6 +30,11 @@ Elapsed: 843.3289ms
 Elapsed: 783.4655ms
 127638.05 epochs/s
 
+### 7. sigmoid prime on cost derivative in place
+
+Elapsed: 748.3928ms
+133619.67 epochs/s
+
 ---
 - [ ] Files
   - [ ] Saving
