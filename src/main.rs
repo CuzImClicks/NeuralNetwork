@@ -18,7 +18,7 @@ struct NeuralNetwork {
 fn gen_random_matrix(rows: usize, cols: usize) -> Array2<f64>
 {
     let mut rng = rand::thread_rng();
-    Array2::from_shape_fn((rows, cols), |_| rng.gen_range(0.0..1.0))
+    Array2::from_shape_fn((rows, cols), |_| rng.gen_range(-1.0..1.0))
 }
 
 
@@ -55,7 +55,7 @@ impl NeuralNetwork {
         let mut training_data = training_data;
         for _ in 0..epochs {
             training_data.shuffle(&mut rand::thread_rng());
-            for batch in training_data.windows(batch_size) {
+            for batch in training_data.chunks(batch_size) {
                 self.update_weights_biases(batch, learning_rate);
             }
         }
@@ -74,13 +74,14 @@ impl NeuralNetwork {
         self.biases = self.biases.iter().zip(nabla_b.iter()).map(|(b, nb)| b - (learning_rate / batch.len() as f64) * nb).collect();
     }
 
-    fn backpropagation(&mut self, output: &Array2<f64>, truth: &Array2<f64>) -> (Vec<Array2<f64>>, Vec<Array2<f64>>) {
+    fn backpropagation(&mut self, input: &Array2<f64>, truth: &Array2<f64>) -> (Vec<Array2<f64>>, Vec<Array2<f64>>) {
         let mut nabla_w: Vec<Array2<f64>> = mirror_zeros(&self.weights);
         let mut nabla_b: Vec<Array2<f64>> = mirror_zeros(&self.biases);
-        let mut activation: Array2<f64> = output.clone();
+        let mut activation = input.clone();
         let mut activations: Vec<Array2<f64>> = vec![activation.clone()];
         let mut zs = vec![];
 
+        // feedforward
         for (w, b) in self.weights.iter().zip(self.biases.iter()) {
             let z = w.dot(&activation) + b;
             zs.push(z.clone());
@@ -88,19 +89,19 @@ impl NeuralNetwork {
             activations.push(activation.clone());
         }
 
-        let delta = cost_derivative(activations.last().unwrap().clone(), truth) * zs.last().unwrap().mapv(sigmoid_prime);
+        // backward pass
+        let mut delta = cost_derivative(activations.last().unwrap().clone(), truth) * zs.last().unwrap().mapv(sigmoid_prime);
         let nabla_b_len = nabla_b.len();
-        nabla_b[nabla_b_len - 1usize] = delta.clone();
-
+        nabla_b[nabla_b_len - 1] = delta.clone();
         let nabla_w_len = nabla_w.len();
-        nabla_w[nabla_w_len - 1usize] = delta.dot(&activations[activations.len() - 2].t());
+        nabla_w[nabla_w_len - 1] = delta.dot(&activations[activations.len() - 2].t());
 
-        for l in 2..self.weights.len() +1 { // OMG num layers is weights + 1 because the input layer counts
-            let z = &zs[zs.len() - l];
+        for l in (1..self.weights.len()).rev() {
+            let z = &zs[l - 1];
             let sp = z.mapv(sigmoid_prime);
-            let delta = self.weights[self.weights.len() - l + 1].t().dot(&delta) * sp;
-            nabla_b[nabla_b_len - l] = delta.clone();
-            nabla_w[nabla_w_len - l] = delta.dot(&activations[activations.len() - l - 1].t());
+            delta = self.weights[l].t().dot(&delta) * sp;
+            nabla_b[l - 1] = delta.clone();
+            nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
         }
         (nabla_w, nabla_b)
     }
@@ -119,16 +120,36 @@ fn mirror_zeros<O: num_traits::Zero + Clone>(i: &[Array2<O>]) -> Vec<Array2<O>> 
     i.iter().map(|x| Array2::zeros(x.dim())).collect()
 }
 
+fn gen_x2_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
+    vec![
+        (arr2(&[[0.0]]), arr2(&[[0.0]])),
+        (arr2(&[[0.5]]), arr2(&[[0.25]])),
+        (arr2(&[[1.0]]), arr2(&[[1.0]])),
+        (arr2(&[[1.5]]), arr2(&[[2.25]])),
+        (arr2(&[[2.0]]), arr2(&[[4.0]])),
+        (arr2(&[[2.5]]), arr2(&[[6.25]])),
+        (arr2(&[[3.0]]), arr2(&[[9.0]])),
+        (arr2(&[[-0.5]]), arr2(&[[0.25]])),
+        (arr2(&[[-1.0]]), arr2(&[[1.0]])),
+        (arr2(&[[-1.5]]), arr2(&[[2.25]])),
+    ]
+}
+
+fn gen_xor_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
+    vec![
+        (arr2(&[[0.0], [0.0]]), arr2(&[[0.0]])),
+        (arr2(&[[0.0], [1.0]]), arr2(&[[1.0]])),
+        (arr2(&[[1.0], [0.0]]), arr2(&[[1.0]])),
+        (arr2(&[[1.0], [1.0]]), arr2(&[[0.0]])),
+    ]
+}
 
 fn main() {
     let mut n = NeuralNetwork::initialise_random(vec![2, 3, 1]);
 
     let start = std::time::Instant::now();
 
-    n.stochastic_gradient_descent(vec![(arr2(&[[1.0], [0.0]]), arr2(&[[1.0]])),
-                                       (arr2(&[[0.0], [1.0]]), arr2(&[[1.0]])),
-                                       (arr2(&[[1.0], [1.0]]), arr2(&[[0.0]])),
-                                       (arr2(&[[0.0], [0.0]]), arr2(&[[0.0]]))], 1000000, 4, 0.1);
+    n.stochastic_gradient_descent(gen_xor_dataset(), 1000000, 5, 0.1);
 
     let elapsed = start.elapsed();
     println!("Elapsed: {:?}", elapsed);
@@ -146,13 +167,17 @@ fn main() {
         print_matrix(b);
     }
 
-    println!("\nResults: ");
-    println!("[1.0], [0.0]");
-    print_matrix(&n.feedforward(arr2(&[[1.0], [0.0]])));
-    println!("[0.0], [1.0]");
-    print_matrix(&n.feedforward(arr2(&[[0.0], [1.0]])));
-    println!("[1.0], [1.0]");
-    print_matrix(&n.feedforward(arr2(&[[1.0], [1.0]])));
-    println!("[0.0], [0.0]");
-    print_matrix(&n.feedforward(arr2(&[[0.0], [0.0]])));
+
+    println!("\nResults:");
+
+    for (i, (input, output)) in gen_xor_dataset().iter().enumerate() {
+        let result = n.feedforward(input.clone());
+        print!("Input: ");
+        print_matrix(input);
+        print!("Expected: ");
+        print_matrix(output);
+        print!("Got: ");
+        print_matrix(&result);
+        println!();
+    }
 }
