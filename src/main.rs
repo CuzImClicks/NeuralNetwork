@@ -21,7 +21,7 @@ fn gen_random_matrix(rows: usize, cols: usize) -> Array2<f64>
 
 
 
-fn cost_derivative(output: ArrayBase<OwnedRepr<f64>, Ix2>, truth: &Array2<f64>) -> Array2<f64> {
+fn cost_derivative(output: &ArrayBase<OwnedRepr<f64>, Ix2>, truth: &Array2<f64>) -> Array2<f64> {
     output - truth
 }
 
@@ -117,18 +117,18 @@ impl NeuralNetwork {
         }
 
         // backward pass
-        let mut delta = cost_derivative(activations.last().unwrap().clone(), truth);
-        delta.zip_mut_with(&zs.last().unwrap(), |d, s| *d *= sigmoid_prime(*s));
+        let mut delta = cost_derivative(activations.last().unwrap(), truth);
+        delta.zip_mut_with(&zs.pop().unwrap(), |d, s| *d *= sigmoid_prime(*s));
         let nabla_b_len = nabla_b.len();
-        nabla_b[nabla_b_len - 1] = delta.clone();
+        nabla_b[nabla_b_len - 1].assign(&delta);
         let nabla_w_len = nabla_w.len();
         nabla_w[nabla_w_len - 1] = delta.dot(&activations[activations.len() - 2].t());
 
         for l in (1..self.weights.len()).rev() {
-            let z = &zs[l - 1];
-            let sp = z.mapv(sigmoid_prime);
-            delta = self.weights[l].t().dot(&delta) * sp;
-            nabla_b[l - 1] = delta.clone();
+            let mut z = zs.pop().unwrap();
+            z.mapv_inplace(sigmoid_prime);
+            delta = self.weights[l].t().dot(&delta) * z;
+            nabla_b[l - 1].assign(&delta);
             nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
         }
     }

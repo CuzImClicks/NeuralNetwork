@@ -35,6 +35,26 @@ Elapsed: 783.4655ms
 Elapsed: 748.3928ms
 133619.67 epochs/s
 
+### 8. only allocate delta_nabla_w/b once
+
+Elapsed: 722.5947ms
+138390.17 epochs/s
+
+### 9. apply sigmoid in place on z
+
+Elapsed: 691.4536ms
+144622.88 epochs/s
+
+### 10. two clones less first calc of delta
+
+Elapsed: 667.8092ms
+149743.38 epochs/s
+
+### 11. assign on delta borrow and pop on zs
+
+Elapsed: 639.0349ms
+156485.98 epochs/s
+
 ---
 - [ ] Files
   - [ ] Saving
