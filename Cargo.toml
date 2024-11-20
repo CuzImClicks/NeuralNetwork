@@ -1,11 +1,15 @@
-[package]
-name = "neural_net"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = ["neural_net", "application"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[workspace.dependencies]
 ndarray = "0.16.1"
 num-traits = "0.2.18"
 rand = "0.8.5"
+
+[workspace.dev-dependencies]
+criterion = "0.5.1"
+
+[profile.release]
+debug = 1
+
+workspace.resolver = "2"
