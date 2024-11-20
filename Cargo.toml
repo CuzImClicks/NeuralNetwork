@@ -1,5 +1,6 @@
 [workspace]
 members = ["neural_net", "application"]
+workspace.resolver = "2"
 
 [workspace.dependencies]
 ndarray = "0.16.1"
@@ -12,4 +13,3 @@ criterion = "0.5.1"
 [profile.release]
 debug = 1
 
-workspace.resolver = "2"

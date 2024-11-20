@@ -7,3 +7,17 @@ edition = "2021"
 ndarray = { workspace = true }
 rand = { workspace = true }
 num-traits = { workspace = true }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "feedforward"
+harness = false
+
+[[bench]]
+name = "train"
+harness = false
+
+[features]
+logging = []

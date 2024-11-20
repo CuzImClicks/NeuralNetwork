@@ -1,4 +1,4 @@
-use criterion::Criterion;
+use criterion::{criterion_group, criterion_main, Criterion};
 use neural_net::layers::default_leaky_relu;
 use neural_net::neural_net::NeuralNetwork;
 
@@ -12,9 +12,14 @@ fn bench_feedforward(c: &mut Criterion) {
     
     let dataset = neural_net::datasets::gen_xor_dataset();
     
-    group.bench_function("feedforward_xor", |b| b.iter(|| {
-        for (input, _) in dataset.iter() {
-            network.feedforward(input);
-        }
-    }));
+    group.bench_function("feedforward_xor", |b| {
+        b.iter(|| {
+            for (input, _) in dataset.iter() {
+                network.feedforward(input);
+            }
+        })
+    });
 }
+
+criterion_group!(benches, bench_feedforward);
+criterion_main!(benches);
