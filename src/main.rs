@@ -74,8 +74,14 @@ impl NeuralNetwork {
         let mut delta_nabla_w: Vec<Array2<f64>> = self.weights.iter().map(|w|Array2::zeros(w.dim())).collect();
         let mut delta_nabla_b: Vec<Array2<f64>> = self.biases.iter().map(|w|Array2::zeros(w.dim())).collect();
 
+        let validation: Vec<(ArrayBase<OwnedRepr<f64>, Ix2>, f64)> = training_data.iter().map(|x| (x.0.clone(), x.1[(0,0)].clone())).collect();
         for epoch in 0..epochs {
             training_data.shuffle(&mut rand::thread_rng());
+            let loss = self.validate(&validation);
+            println!("Epoch {epoch} - {loss}");
+            if loss.is_nan() {
+                panic!("loss is nan");
+            }
             for batch in training_data.chunks(batch_size) {
                 self.update_weights_biases(batch, learning_rate, &mut nabla_w, &mut nabla_b, &mut delta_nabla_w, &mut delta_nabla_b);
             }
@@ -170,19 +176,15 @@ fn reset_matrix<O: num_traits::Zero + Clone>(i: &mut [Array2<O>]) {
     }
 }
 
-fn gen_x2_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
-    vec![
-        (arr2(&[[0.0]]), arr2(&[[0.0]])),
-        (arr2(&[[0.5]]), arr2(&[[0.25]])),
-        (arr2(&[[1.0]]), arr2(&[[1.0]])),
-        (arr2(&[[1.5]]), arr2(&[[2.25]])),
-        (arr2(&[[2.0]]), arr2(&[[4.0]])),
-        (arr2(&[[2.5]]), arr2(&[[6.25]])),
-        (arr2(&[[3.0]]), arr2(&[[9.0]])),
-        (arr2(&[[-0.5]]), arr2(&[[0.25]])),
-        (arr2(&[[-1.0]]), arr2(&[[1.0]])),
-        (arr2(&[[-1.5]]), arr2(&[[2.25]])),
-    ]
+fn gen_x2_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
+
+    let mut v: Vec<(Array2<f64>, Array2<f64>)> = Vec::with_capacity((high / step) as usize);
+    let mut i = low;
+    while i <= high {
+        v.push((arr2(&[[i]]), arr2(&[[i.powi(2)]])));
+        i += step;
+    }
+    v
 }
 
 fn gen_xor_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
@@ -195,18 +197,19 @@ fn gen_xor_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
 }
 
 fn main() {
-    let mut n = NeuralNetwork::initialise_random(vec![1, 16, 8, 1]);
+    let mut n = NeuralNetwork::initialise_random(vec![1, 4, 4, 4, 1]);
 
     let start = std::time::Instant::now();
 
-    let num_epochs: usize = 5000;
-    n.train(gen_x2_dataset(), num_epochs, 5, 0.1);
+    let num_epochs: usize = 2000;
+    let dataset = gen_x2_dataset(0.0, 10.0, 0.1);
+    n.train(dataset.clone(), num_epochs, 5, 0.01);
 
     let elapsed = start.elapsed();
     println!("Elapsed: {:?}", elapsed);
     println!("{:.2?} epochs/s", (num_epochs as f32) / elapsed.as_secs_f32());
 
-    println!("\nWeights: ");
+    println!("\nWeights:");
     for (i, w) in n.weights.iter().enumerate() {
         println!("{}", i);
         print_matrix(w);
@@ -220,7 +223,7 @@ fn main() {
 
     println!("\nResults:");
 
-    for (_, (input, output)) in gen_x2_dataset().iter().enumerate() {
+    for (_, (input, output)) in dataset.iter().enumerate() {
         let result = n.feedforward(&input);
         print!("Input: ");
         print_matrix(input);
