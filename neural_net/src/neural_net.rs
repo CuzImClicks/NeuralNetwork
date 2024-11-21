@@ -1,6 +1,5 @@
 use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
-use rand::Rng;
 use std::fmt::Display;
 use crate::layers::Layer;
 
