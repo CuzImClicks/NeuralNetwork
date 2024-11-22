@@ -170,19 +170,21 @@ impl NeuralNetwork {
         }
 
         // backward pass
-        let mut delta: &mut Array2<f64> = &mut cost_derivative(activations.last().unwrap(), truth);
-        delta.zip_mut_with(&post_biases.pop().unwrap(), |d, s| *d *= (self.layers.last().unwrap().activation_function_prime)(*s));
+        let last_activation = activations.last().unwrap();
+        let mut delta: Array2<f64> = cost_derivative(last_activation, truth);
+        delta.zip_mut_with(&post_biases.last().unwrap(), |d, s| *d *= (self.layers.last().unwrap().activation_function_prime)(*s));
         let nabla_b_len = delta_nabla_b.len();
-        delta_nabla_b[nabla_b_len - 1].assign(delta);
+        delta_nabla_b[nabla_b_len - 1].assign(&delta);
         let nabla_w_len = delta_nabla_w.len();
-        delta_nabla_w[nabla_w_len - 1] = delta.dot(&activations[activations.len() - 2].t());
         
-        for (l, post_bias) in post_biases.iter_mut().enumerate().skip(1).rev() {
+        delta_nabla_w[nabla_w_len - 1].assign(&delta.dot(&activations[activations.len() - 2].t()));
+        
+        for (l, post_bias) in post_biases.iter_mut().enumerate().skip(1).rev().skip(1) {
             post_bias.mapv_inplace(self.layers[l - 1].activation_function_prime);
-            // FIXME
-            let dot = self.layers[l].weights.t().dot(delta);
+            
+            delta = self.layers[l].weights.t().dot(&delta);
             delta.zip_mut_with(post_bias, |d, s| *d *= s);
-            delta_nabla_b[l - 1].assign(delta);
+            delta_nabla_b[l - 1].assign(&delta);
             delta_nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
         }
     }

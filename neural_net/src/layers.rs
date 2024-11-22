@@ -2,6 +2,7 @@ use ndarray::Array2;
 use rand::Rng;
 use crate::activation::{leaky_relu, leaky_relu_prime, linear, linear_prime, relu, relu_prime, sigmoid, sigmoid_prime, tanh, tanh_prime};
 
+#[derive(Debug)]
 pub struct Layer {
     pub weights: Array2<f64>,
     pub biases: Array2<f64>,
