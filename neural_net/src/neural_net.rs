@@ -1,7 +1,8 @@
 use crate::layers::Layer;
-use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
+use ndarray::{Array1, Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
 use std::fmt::Display;
+use std::ops::AddAssign;
 
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>
@@ -86,8 +87,12 @@ impl NeuralNetwork {
         };
         
         let mut batches: Vec<(Array2<f64>, Array2<f64>)> = inputs.clone().into_iter().zip(truths.clone()).collect();
+        
+        #[cfg(feature = "logging")]
         let validation_inputs: Vec<Array2<f64>> = inputs.into_iter().take(10).collect();
+        #[cfg(feature = "logging")]
         let validation_truths: Vec<Array2<f64>> = truths.into_iter().take(10).collect();
+        
         for epoch in 0..epochs {
             batches.shuffle(&mut rand::thread_rng());
 
@@ -156,22 +161,22 @@ impl NeuralNetwork {
                        activations: &mut [Array2<f64>],
                        post_biases: &mut Vec<Array2<f64>>,
     ) {
-        let mut previous_output = input.clone(); // output from the previous layer
+        let mut previous_output: &mut Array2<f64> = &mut input.clone(); // output from the previous layer
         activations[0].assign(&previous_output);
         // feedforward
         let mut z: Array2<f64>;
         for (i, layer) in self.layers.iter().enumerate() {
-            z = layer.weights.dot(&previous_output);
+            z = layer.weights.dot(previous_output);
             z += &layer.biases;
             post_biases[i + 1].assign(&z);
             z.mapv_inplace(layer.activation_function);
-            previous_output = z;
+            previous_output = &mut z;
             activations[i + 1].assign(&previous_output);
         }
 
         // backward pass
         let last_activation = activations.last().unwrap();
-        let mut delta: Array2<f64> = cost_derivative(last_activation, truth);
+        let mut delta: &mut Array2<f64> = &mut cost_derivative(last_activation, truth);
         delta.zip_mut_with(&post_biases.last().unwrap(), |d, s| *d *= (self.layers.last().unwrap().activation_function_prime)(*s));
         let nabla_b_len = delta_nabla_b.len();
         delta_nabla_b[nabla_b_len - 1].assign(&delta);
@@ -179,12 +184,14 @@ impl NeuralNetwork {
         
         delta_nabla_w[nabla_w_len - 1].assign(&delta.dot(&activations[activations.len() - 2].t()));
         
+        // skip last one because its the output layer
+        // skip first one cause we always adjust the next layer
         for (l, post_bias) in post_biases.iter_mut().enumerate().skip(1).rev().skip(1) {
             post_bias.mapv_inplace(self.layers[l - 1].activation_function_prime);
             
-            delta = self.layers[l].weights.t().dot(&delta);
+            *delta = self.layers[l].weights.t().dot(delta);
             delta.zip_mut_with(post_bias, |d, s| *d *= s);
-            delta_nabla_b[l - 1].assign(&delta);
+            delta_nabla_b[l - 1].assign(delta);
             delta_nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
         }
     }
