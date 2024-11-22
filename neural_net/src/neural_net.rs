@@ -1,7 +1,6 @@
 use crate::layers::Layer;
 use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
-use rand::Rng;
 use std::fmt::Display;
 
 pub struct NeuralNetwork {
