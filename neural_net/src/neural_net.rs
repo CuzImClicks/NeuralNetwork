@@ -34,12 +34,6 @@ impl NeuralNetwork {
         NeuralNetwork { layers }
     }
 
-    //fn initialise_random(layer_sizes: Vec<usize>) -> Self {
-    //    let weights  = (1..layer_sizes.len()).map(|i| gen_random_matrix(layer_sizes[i], layer_sizes[i - 1])).collect();
-    //    let biases = (1..layer_sizes.len()).map(|i| gen_random_matrix(layer_sizes[i], 1)).collect();
-    //    NeuralNetwork::new(weights, biases)
-    //}
-
     pub fn feedforward(&self, inputs: &Array2<f64>) -> Array2<f64> {
         let mut result = inputs.to_owned();
         for layer in self.layers.iter() {
