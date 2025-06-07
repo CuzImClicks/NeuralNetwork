@@ -194,7 +194,7 @@ impl NeuralNetwork {
 pub fn print_matrix<T: Display>(matrix: &ArrayView<T, Ix2>) {
     for row in matrix.rows() {
         for cell in row {
-            print!("{:.2} ", cell);
+            print!("{:.4}, ", cell);
         }
         println!();
     }
