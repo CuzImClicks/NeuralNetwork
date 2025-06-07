@@ -1,8 +1,7 @@
 use crate::layers::Layer;
-use ndarray::{Array1, Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
+use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
 use std::fmt::Display;
-use std::ops::AddAssign;
 
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>
@@ -38,14 +37,13 @@ impl NeuralNetwork {
         let mut result = inputs.to_owned();
         for layer in self.layers.iter() {
             result = layer.weights.dot(&result);
-            //dbg!("dot", &result, &layer.biases);
             result += &layer.biases;
             result.mapv_inplace(layer.activation_function);
         }
         result
     }
 
-    pub fn validate(&self, inputs: &[Array2<f64>], truths: &[Array2<f64>]) -> f64 {
+    pub fn validate(&self, inputs: &Vec<&Array2<f64>>, truths: &Vec<&Array2<f64>>) -> f64 {
         inputs
             .iter()
             .zip(truths.iter())
@@ -68,8 +66,8 @@ impl NeuralNetwork {
 
         activations_shape.push(Array2::zeros((self.layers.last().unwrap().biases.dim().0, 1)));
 
-        let inputs = training_data.iter().map(|(i, _)| i.clone()).collect::<Vec<_>>();
-        let truths = training_data.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
+        let mut inputs = training_data.iter().map(|(i, _)| i).collect::<Vec<_>>();
+        let mut truths = training_data.iter().map(|(_, t)| t).collect::<Vec<_>>();
 
         let mut training_data = TrainingData {
             nabla_w: weight_size.clone(),
@@ -80,12 +78,12 @@ impl NeuralNetwork {
             post_biases: activations_shape,
         };
         
-        let mut batches: Vec<(Array2<f64>, Array2<f64>)> = inputs.clone().into_iter().zip(truths.clone()).collect();
-        
         #[cfg(feature = "logging")]
-        let validation_inputs: Vec<Array2<f64>> = inputs.into_iter().take(10).collect();
+        let validation_inputs: Vec<&Array2<f64>> = inputs.split_off(10);
         #[cfg(feature = "logging")]
-        let validation_truths: Vec<Array2<f64>> = truths.into_iter().take(10).collect();
+        let validation_truths: Vec<&Array2<f64>> = truths.split_off(10);
+
+        let mut batches: Vec<(&Array2<f64>, &Array2<f64>)> = inputs.into_iter().zip(truths).collect(); // : 
         
         for epoch in 0..epochs {
             batches.shuffle(&mut rand::thread_rng());
@@ -109,7 +107,7 @@ impl NeuralNetwork {
     }
 
     fn update_weights_biases(&mut self,
-                             batch: &[(Array2<f64>, Array2<f64>)],
+                             batch: &[(&Array2<f64>, &Array2<f64>)],
                              learning_rate: f64,
                              lambda: f64,
                              training_data: &mut TrainingData
