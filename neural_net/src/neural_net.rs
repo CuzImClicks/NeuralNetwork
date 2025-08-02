@@ -1,7 +1,7 @@
 use crate::layers::Layer;
 use log::info;
 use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
-use rand::prelude::SliceRandom;
+use rand::{prelude::SliceRandom, thread_rng};
 use std::fmt::Display;
 
 pub struct NeuralNetwork {
@@ -94,6 +94,8 @@ impl NeuralNetwork {
             activations: activations_shape.clone(),
             post_biases: activations_shape,
         };
+        
+        inputs.shuffle(&mut thread_rng());
 
         #[cfg(feature = "logging")]
         let validation_inputs: Vec<&Array2<f64>> = inputs.split_off(10);
@@ -104,7 +106,7 @@ impl NeuralNetwork {
             inputs.into_iter().zip(truths).collect(); // :
 
         for epoch in 0..epochs {
-            batches.shuffle(&mut rand::thread_rng());
+            batches.shuffle(&mut thread_rng());
 
             let start = std::time::Instant::now();
 
@@ -154,13 +156,13 @@ impl NeuralNetwork {
         }
 
         for (w, nw) in self.layers.iter_mut().zip(nabla_w.iter()) {
-            w.weights.scaled_add(-learning_rate, nw);
+            w.weights.scaled_add(-(learning_rate / batch.len() as f64), nw);
             if lambda != 0.0 {
                 w.weights.mapv_inplace(|x| x - lambda * x);
             }
         }
         for (b, nb) in self.layers.iter_mut().zip(nabla_b.iter()) {
-            b.biases.scaled_add(-learning_rate, nb);
+            b.biases.scaled_add(-(learning_rate / batch.len() as f64), nb);
         }
     }
 
@@ -188,12 +190,12 @@ impl NeuralNetwork {
 
         // backward pass
         let last_activation = activations.last().unwrap();
-        let delta: &mut Array2<f64> = &mut cost_derivative(last_activation, truth);
+        let mut delta: Array2<f64> = cost_derivative(last_activation, truth);
         delta.zip_mut_with(post_biases.last().unwrap(), |d, s| {
             *d *= self.layers.last().unwrap().activation.derivative(*s)
         });
         let nabla_b_len = delta_nabla_b.len();
-        delta_nabla_b[nabla_b_len - 1].assign(delta);
+        delta_nabla_b[nabla_b_len - 1].assign(&delta);
         let nabla_w_len = delta_nabla_w.len();
 
         delta_nabla_w[nabla_w_len - 1].assign(&delta.dot(&activations[activations.len() - 2].t()));
@@ -203,9 +205,9 @@ impl NeuralNetwork {
         for (l, post_bias) in post_biases.iter_mut().enumerate().skip(1).rev().skip(1) {
             post_bias.mapv_inplace(|v| self.layers[l - 1].activation.derivative(v));
 
-            *delta = self.layers[l].weights.t().dot(delta);
+            delta = self.layers[l].weights.t().dot(&delta);
             delta.zip_mut_with(post_bias, |d, s| *d *= s);
-            delta_nabla_b[l - 1].assign(delta);
+            delta_nabla_b[l - 1].assign(&delta);
             delta_nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
         }
     }
