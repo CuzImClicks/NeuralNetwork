@@ -3,6 +3,7 @@ use ndarray::arr2;
 use neural_net::activation::Activation;
 use neural_net::layers::Layer;
 use neural_net::neural_net::NeuralNetwork;
+use rand::rng;
 use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicUsize;
@@ -38,7 +39,7 @@ fn bench_train(c: &mut Criterion) {
     group.bench_function("train_x2", |b| {
         b.iter(|| {
             let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                network.train(dataset.clone(), 10, 10, 5, 0.001, 0.0);
+                network.train(dataset.clone(), 10, 10, 5, 0.001, 0.0, &mut rng());
             }));
             if result.is_err() {
                 panic_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

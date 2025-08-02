@@ -12,7 +12,7 @@ fn bench_feedforward(c: &mut Criterion) {
     group.bench_function("feedforward_xor", |b| {
         b.iter(|| {
             for (input, _) in dataset.iter() {
-                network.feedforward(input);
+                network.feedforward(input.view());
             }
         })
     });

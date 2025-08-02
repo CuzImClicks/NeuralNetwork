@@ -1,7 +1,8 @@
 use crate::layers::Layer;
 use log::info;
-use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
-use rand::{prelude::SliceRandom, thread_rng};
+use ndarray::{Array2, ArrayBase, ArrayView, ArrayView2, Ix2, OwnedRepr};
+use rand::{prelude::SliceRandom, Rng};
+use rayon::prelude::*;
 use std::fmt::Display;
 
 pub struct NeuralNetwork {
@@ -14,20 +15,16 @@ struct TrainingData {
     delta_nabla_w: Vec<Array2<f64>>,
     delta_nabla_b: Vec<Array2<f64>>,
     activations: Vec<Array2<f64>>,
-    post_biases: Vec<Array2<f64>>,
+    pre_activations: Vec<Array2<f64>>,
 }
 
-fn cost_derivative(output: &ArrayBase<OwnedRepr<f64>, Ix2>, truth: &Array2<f64>) -> Array2<f64> {
-    output - truth
+fn cost_derivative(output: ArrayView2<f64>, truth: ArrayView2<f64>) -> Array2<f64> {
+    &output - &truth
 }
 
-fn error_squared(output: &Array2<f64>, truth: &Array2<f64>) -> f64 {
-    output
-        .iter()
-        .zip(truth.iter())
-        .map(|(o, t)| (o - t).powi(2))
-        .sum::<f64>()
-        / (output.len() as f64)
+fn error_squared(output: ArrayView2<f64>, truth: ArrayView2<f64>) -> f64 {
+    let diff = &output - &truth;
+    diff.mapv(|d| d.powi(2)).sum() / (output.len() as f64)
 }
 
 impl NeuralNetwork {
@@ -35,7 +32,7 @@ impl NeuralNetwork {
         NeuralNetwork { layers }
     }
 
-    pub fn feedforward(&self, inputs: &Array2<f64>) -> Array2<f64> {
+    pub fn feedforward(&self, inputs: ArrayView2<f64>) -> Array2<f64> {
         let mut result = inputs.to_owned();
         for layer in self.layers.iter() {
             result = layer.weights.dot(&result);
@@ -45,23 +42,35 @@ impl NeuralNetwork {
         result
     }
 
-    pub fn validate(&self, inputs: &Vec<&Array2<f64>>, truths: &Vec<&Array2<f64>>) -> f64 {
-        inputs
-            .iter()
-            .zip(truths.iter())
-            .map(|(i, o)| error_squared(&self.feedforward(i), o))
-            .sum::<f64>()
-            / (inputs.len() as f64)
+    pub fn validate<'a>(&self, data: &[(ArrayView2<'a, f64>, ArrayView2<'a, f64>)]) -> f64 {
+        let (sum, count) = data
+            .par_iter()
+            .map(|(input, truth)| {
+                let output = self.feedforward(*input);
+                error_squared(output.view(), *truth)
+            })
+            .fold(
+                || (0.0f64, 0usize),
+                |(acc, cnt), loss| (acc + loss, cnt + 1),
+            )
+            .reduce(|| (0.0f64, 0usize), |(a1, c1), (a2, c2)| (a1 + a2, c1 + c2));
+
+        if count == 0 {
+            0.0
+        } else {
+            sum / (count as f64)
+        }
     }
 
     pub fn train(
         &mut self,
-        training_data: Vec<(Array2<f64>, Array2<f64>)>,
+        raw_training_data: Vec<(Array2<f64>, Array2<f64>)>,
         epochs: usize,
         batches_per_epoch: usize,
         batch_size: usize,
         learning_rate: f64,
         lambda: f64,
+        rng: &mut impl Rng,
     ) {
         let weight_size: Vec<Array2<f64>> = self
             .layers
@@ -83,30 +92,28 @@ impl NeuralNetwork {
             1,
         )));
 
-        let mut inputs = training_data.iter().map(|(i, _)| i).collect::<Vec<_>>();
-        let mut truths = training_data.iter().map(|(_, t)| t).collect::<Vec<_>>();
-
         let mut training_data = TrainingData {
             nabla_w: weight_size.clone(),
             nabla_b: bias_size.clone(),
             delta_nabla_w: weight_size,
             delta_nabla_b: bias_size,
             activations: activations_shape.clone(),
-            post_biases: activations_shape,
+            pre_activations: activations_shape,
         };
-        
-        inputs.shuffle(&mut thread_rng());
+
+        let mut batches = raw_training_data;
+        batches.shuffle(rng);
 
         #[cfg(feature = "logging")]
-        let validation_inputs: Vec<&Array2<f64>> = inputs.split_off(10);
+        let validation_pairs = {
+            let val_size = 10.min(batch_size / 10);
+            batches.drain(..val_size).collect::<Vec<_>>()
+        };
         #[cfg(feature = "logging")]
-        let validation_truths: Vec<&Array2<f64>> = truths.split_off(10);
-
-        let mut batches: Vec<(&Array2<f64>, &Array2<f64>)> =
-            inputs.into_iter().zip(truths).collect(); // :
+        let views = validation_pairs.iter().map(|(i, o)| (i.view(), o.view())).collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>();
 
         for epoch in 0..epochs {
-            batches.shuffle(&mut thread_rng());
+            batches.shuffle(rng);
 
             let start = std::time::Instant::now();
 
@@ -117,8 +124,9 @@ impl NeuralNetwork {
             #[cfg(feature = "logging")]
             {
                 let elapsed = start.elapsed();
-                let loss = self.validate(&validation_inputs, &validation_truths);
-                info!("Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}");
+                let loss =
+                    self.validate(&views);
+                println!("Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}|{:?}", start.elapsed() - elapsed);
                 if loss.is_nan() {
                     panic!("Loss is NaN. Training aborted.");
                 }
@@ -128,7 +136,7 @@ impl NeuralNetwork {
 
     fn update_weights_biases(
         &mut self,
-        batch: &[(&Array2<f64>, &Array2<f64>)],
+        batch: &[(Array2<f64>, Array2<f64>)],
         learning_rate: f64,
         lambda: f64,
         training_data: &mut TrainingData,
@@ -138,13 +146,13 @@ impl NeuralNetwork {
         let delta_nabla_w = &mut training_data.delta_nabla_w;
         let delta_nabla_b = &mut training_data.delta_nabla_b;
         let activations = &mut training_data.activations;
-        let post_biases = &mut training_data.post_biases;
+        let pre_activations = &mut training_data.pre_activations;
         reset_matrix(nabla_w);
         reset_matrix(nabla_b);
         reset_matrix(delta_nabla_w);
         reset_matrix(delta_nabla_b);
         for (o, t) in batch {
-            self.backpropagation(o, t, delta_nabla_w, delta_nabla_b, activations, post_biases);
+            self.backpropagation(o, t, delta_nabla_w, delta_nabla_b, activations, pre_activations);
             for (nw, dnw) in nabla_w.iter_mut().zip(delta_nabla_w.iter()) {
                 *nw += dnw;
             }
@@ -155,12 +163,17 @@ impl NeuralNetwork {
             reset_matrix(delta_nabla_b);
         }
 
-        for (w, nw) in self.layers.iter_mut().zip(nabla_w.iter()) {
-            w.weights.scaled_add(-(learning_rate / batch.len() as f64), nw);
+        let batch_size_f = batch.len() as f64;
+        for (layer, grad_w) in self.layers.iter_mut().zip(nabla_w.iter()) {
+            let mut adjusted = grad_w.clone();
             if lambda != 0.0 {
-                w.weights.mapv_inplace(|x| x - lambda * x);
+                adjusted += &layer.weights.mapv(|w| lambda * w);
             }
+            layer
+                .weights
+                .scaled_add(-(learning_rate / batch_size_f), &adjusted);
         }
+
         for (b, nb) in self.layers.iter_mut().zip(nabla_b.iter()) {
             b.biases.scaled_add(-(learning_rate / batch.len() as f64), nb);
         }
@@ -175,22 +188,22 @@ impl NeuralNetwork {
         activations: &mut [Array2<f64>],
         post_biases: &mut [Array2<f64>],
     ) {
-        let mut previous_output: &mut Array2<f64> = &mut input.clone(); // output from the previous layer
-        activations[0].assign(previous_output);
+        let mut previous_output: Array2<f64> = input.clone(); // output from the previous layer
+        activations[0].assign(&previous_output);
         // feedforward
         let mut z: Array2<f64>;
         for (i, layer) in self.layers.iter().enumerate() {
-            z = layer.weights.dot(previous_output);
+            z = layer.weights.dot(&previous_output);
             z += &layer.biases;
             post_biases[i + 1].assign(&z);
             z.mapv_inplace(|v| layer.activation.apply(v));
-            previous_output = &mut z;
-            activations[i + 1].assign(previous_output);
+            previous_output = z;
+            activations[i + 1].assign(&previous_output);
         }
 
         // backward pass
         let last_activation = activations.last().unwrap();
-        let mut delta: Array2<f64> = cost_derivative(last_activation, truth);
+        let mut delta: Array2<f64> = cost_derivative(last_activation.view(), truth.view());
         delta.zip_mut_with(post_biases.last().unwrap(), |d, s| {
             *d *= self.layers.last().unwrap().activation.derivative(*s)
         });
@@ -200,15 +213,19 @@ impl NeuralNetwork {
 
         delta_nabla_w[nabla_w_len - 1].assign(&delta.dot(&activations[activations.len() - 2].t()));
 
-        // skip last one because its the output layer
-        // skip first one cause we always adjust the next layer
-        for (l, post_bias) in post_biases.iter_mut().enumerate().skip(1).rev().skip(1) {
-            post_bias.mapv_inplace(|v| self.layers[l - 1].activation.derivative(v));
+        for layer_idx in (1..self.layers.len()).rev() {
+            // pre-activation of current layer is post_biases[layer_idx]
+            let pre_act = &post_biases[layer_idx];
+            let prev_activation = &activations[layer_idx - 1];
 
-            delta = self.layers[l].weights.t().dot(&delta);
-            delta.zip_mut_with(post_bias, |d, s| *d *= s);
-            delta_nabla_b[l - 1].assign(&delta);
-            delta_nabla_w[l - 1] = delta.dot(&activations[l - 1].t());
+            let mut delta_derivative = pre_act.clone();
+            delta_derivative.mapv_inplace(|v| self.layers[layer_idx - 1].activation.derivative(v));
+
+            delta = self.layers[layer_idx].weights.t().dot(&delta);
+            delta.zip_mut_with(&delta_derivative, |d, s| *d *= s);
+
+            delta_nabla_b[layer_idx - 1].assign(&delta);
+            delta_nabla_w[layer_idx - 1].assign(&delta.dot(&prev_activation.t()));
         }
     }
 }
@@ -227,4 +244,16 @@ pub fn reset_matrix<O: num_traits::Zero + Copy>(i: &mut [Array2<O>]) {
     for x in i.iter_mut() {
         x.fill(O::zero());
     }
+}
+
+fn approx_eq(a: f64, b: f64, tol: f64) -> bool {
+    let diff = (a - b).abs();
+    diff <= tol.max(tol * b.abs().max(a.abs()))
+}
+
+fn array_approx_eq(a: &Array2<f64>, b: &Array2<f64>, tol: f64) -> bool {
+    if a.shape() != b.shape() {
+        return false;
+    }
+    a.iter().zip(b.iter()).all(|(x, y)| approx_eq(*x, *y, tol))
 }

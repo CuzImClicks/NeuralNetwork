@@ -80,23 +80,23 @@ pub fn default_leaky_relu(input_size: usize, output_size: usize) -> Layer {
 }
 
 pub fn gen_random_matrix(input_size: usize, output_size: usize) -> Array2<f64> {
-    let mut rng = rand::thread_rng();
-    Array2::from_shape_fn((output_size, input_size), |_| rng.gen_range(-1.0..1.0))
+    let mut rng = rand::rng();
+    Array2::from_shape_fn((output_size, input_size), |_| rng.random_range(-1.0..1.0))
 }
 
 pub fn gen_he_matrix(input_size: usize, output_size: usize) -> Array2<f64> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let variance = (2.0 / (input_size as f64)).sqrt();
     Array2::from_shape_fn((output_size, input_size), |_| {
-        rng.gen_range(-variance..variance)
+        rng.random_range(-variance..variance)
     })
 }
 
 pub fn gen_xavier_matrix(input_size: usize, output_size: usize) -> Array2<f64> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let variance = (2.0 / (input_size + output_size) as f64).sqrt();
     Array2::from_shape_fn((output_size, input_size), |_| {
-        rng.gen_range(-variance..variance)
+        rng.random_range(-variance..variance)
     })
 }
 
