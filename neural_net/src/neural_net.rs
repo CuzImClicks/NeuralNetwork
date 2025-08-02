@@ -110,7 +110,10 @@ impl NeuralNetwork {
             batches.drain(..val_size).collect::<Vec<_>>()
         };
         #[cfg(feature = "logging")]
-        let views = validation_pairs.iter().map(|(i, o)| (i.view(), o.view())).collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>();
+        let views = validation_pairs
+            .iter()
+            .map(|(i, o)| (i.view(), o.view()))
+            .collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>();
 
         for epoch in 0..epochs {
             batches.shuffle(rng);
@@ -124,9 +127,11 @@ impl NeuralNetwork {
             #[cfg(feature = "logging")]
             {
                 let elapsed = start.elapsed();
-                let loss =
-                    self.validate(&views);
-                println!("Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}|{:?}", start.elapsed() - elapsed);
+                let loss = self.validate(&views);
+                println!(
+                    "Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}|{:?}",
+                    start.elapsed() - elapsed
+                );
                 if loss.is_nan() {
                     panic!("Loss is NaN. Training aborted.");
                 }
@@ -152,7 +157,14 @@ impl NeuralNetwork {
         reset_matrix(delta_nabla_w);
         reset_matrix(delta_nabla_b);
         for (o, t) in batch {
-            self.backpropagation(o, t, delta_nabla_w, delta_nabla_b, activations, pre_activations);
+            self.backpropagation(
+                o,
+                t,
+                delta_nabla_w,
+                delta_nabla_b,
+                activations,
+                pre_activations,
+            );
             for (nw, dnw) in nabla_w.iter_mut().zip(delta_nabla_w.iter()) {
                 *nw += dnw;
             }
@@ -175,7 +187,8 @@ impl NeuralNetwork {
         }
 
         for (b, nb) in self.layers.iter_mut().zip(nabla_b.iter()) {
-            b.biases.scaled_add(-(learning_rate / batch.len() as f64), nb);
+            b.biases
+                .scaled_add(-(learning_rate / batch.len() as f64), nb);
         }
     }
 
