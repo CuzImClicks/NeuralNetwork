@@ -1,7 +1,6 @@
 use ndarray::{arr2, Array2};
 
 pub fn gen_x2_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
-
     let mut v: Vec<(Array2<f64>, Array2<f64>)> = Vec::with_capacity((high / step) as usize);
     let mut i = low;
     while i <= high {
@@ -31,10 +30,7 @@ pub fn gen_circle_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, A
 
             let label = if distance < 1.0 { 1.0 } else { 0.0 };
 
-            dataset.push((
-                arr2(&[[x], [y]]), 
-                arr2(&[[label]]),  
-            ));
+            dataset.push((arr2(&[[x], [y]]), arr2(&[[label]])));
 
             y += step;
         }

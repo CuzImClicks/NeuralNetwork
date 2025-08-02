@@ -1,11 +1,11 @@
 use crate::layers::Layer;
+use log::info;
 use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
 use std::fmt::Display;
-use log::info;
 
 pub struct NeuralNetwork {
-    pub layers: Vec<Layer>
+    pub layers: Vec<Layer>,
 }
 
 struct TrainingData {
@@ -14,7 +14,7 @@ struct TrainingData {
     delta_nabla_w: Vec<Array2<f64>>,
     delta_nabla_b: Vec<Array2<f64>>,
     activations: Vec<Array2<f64>>,
-    post_biases: Vec<Array2<f64>>
+    post_biases: Vec<Array2<f64>>,
 }
 
 fn cost_derivative(output: &ArrayBase<OwnedRepr<f64>, Ix2>, truth: &Array2<f64>) -> Array2<f64> {
@@ -25,7 +25,8 @@ fn error_squared(output: &Array2<f64>, truth: &Array2<f64>) -> f64 {
     output
         .iter()
         .zip(truth.iter())
-        .map(|(o, t)| (o - t).powi(2)).sum::<f64>()
+        .map(|(o, t)| (o - t).powi(2))
+        .sum::<f64>()
         / (output.len() as f64)
 }
 
@@ -39,7 +40,7 @@ impl NeuralNetwork {
         for layer in self.layers.iter() {
             result = layer.weights.dot(&result);
             result += &layer.biases;
-            result.mapv_inplace(layer.activation_function);
+            result.mapv_inplace(|v| layer.activation.apply(v));
         }
         result
     }
@@ -53,19 +54,34 @@ impl NeuralNetwork {
             / (inputs.len() as f64)
     }
 
-    pub fn train(&mut self,
-             training_data: Vec<(Array2<f64>, Array2<f64>)>,
-             epochs: usize,
-             batches_per_epoch: usize,
-             batch_size: usize,
-             learning_rate: f64,
-             lambda: f64
+    pub fn train(
+        &mut self,
+        training_data: Vec<(Array2<f64>, Array2<f64>)>,
+        epochs: usize,
+        batches_per_epoch: usize,
+        batch_size: usize,
+        learning_rate: f64,
+        lambda: f64,
     ) {
-        let weight_size: Vec<Array2<f64>> = self.layers.iter().map(|w|Array2::zeros(w.weights.dim())).collect();
-        let bias_size: Vec<Array2<f64>> = self.layers.iter().map(|w|Array2::zeros(w.biases.dim())).collect();
-        let mut activations_shape: Vec<Array2<f64>> = weight_size.iter().map(|w| Array2::zeros((w.dim().1, 1))).collect();
+        let weight_size: Vec<Array2<f64>> = self
+            .layers
+            .iter()
+            .map(|w| Array2::zeros(w.weights.dim()))
+            .collect();
+        let bias_size: Vec<Array2<f64>> = self
+            .layers
+            .iter()
+            .map(|w| Array2::zeros(w.biases.dim()))
+            .collect();
+        let mut activations_shape: Vec<Array2<f64>> = weight_size
+            .iter()
+            .map(|w| Array2::zeros((w.dim().1, 1)))
+            .collect();
 
-        activations_shape.push(Array2::zeros((self.layers.last().unwrap().biases.dim().0, 1)));
+        activations_shape.push(Array2::zeros((
+            self.layers.last().unwrap().biases.dim().0,
+            1,
+        )));
 
         let mut inputs = training_data.iter().map(|(i, _)| i).collect::<Vec<_>>();
         let mut truths = training_data.iter().map(|(_, t)| t).collect::<Vec<_>>();
@@ -78,19 +94,20 @@ impl NeuralNetwork {
             activations: activations_shape.clone(),
             post_biases: activations_shape,
         };
-        
+
         #[cfg(feature = "logging")]
         let validation_inputs: Vec<&Array2<f64>> = inputs.split_off(10);
         #[cfg(feature = "logging")]
         let validation_truths: Vec<&Array2<f64>> = truths.split_off(10);
 
-        let mut batches: Vec<(&Array2<f64>, &Array2<f64>)> = inputs.into_iter().zip(truths).collect(); // : 
-        
+        let mut batches: Vec<(&Array2<f64>, &Array2<f64>)> =
+            inputs.into_iter().zip(truths).collect(); // :
+
         for epoch in 0..epochs {
             batches.shuffle(&mut rand::thread_rng());
 
             let start = std::time::Instant::now();
-            
+
             for batch in batches.chunks(batch_size).cycle().take(batches_per_epoch) {
                 self.update_weights_biases(batch, learning_rate, lambda, &mut training_data);
             }
@@ -107,11 +124,12 @@ impl NeuralNetwork {
         }
     }
 
-    fn update_weights_biases(&mut self,
-                             batch: &[(&Array2<f64>, &Array2<f64>)],
-                             learning_rate: f64,
-                             lambda: f64,
-                             training_data: &mut TrainingData
+    fn update_weights_biases(
+        &mut self,
+        batch: &[(&Array2<f64>, &Array2<f64>)],
+        learning_rate: f64,
+        lambda: f64,
+        training_data: &mut TrainingData,
     ) {
         let nabla_w = &mut training_data.nabla_w;
         let nabla_b = &mut training_data.nabla_b;
@@ -146,42 +164,45 @@ impl NeuralNetwork {
         }
     }
 
-    fn backpropagation(&mut self,
-                       input: &Array2<f64>,
-                       truth: &Array2<f64>,
-                       delta_nabla_w: &mut [Array2<f64>],
-                       delta_nabla_b: &mut [Array2<f64>],
-                       activations: &mut [Array2<f64>],
-                       post_biases: &mut Vec<Array2<f64>>,
+    fn backpropagation(
+        &mut self,
+        input: &Array2<f64>,
+        truth: &Array2<f64>,
+        delta_nabla_w: &mut [Array2<f64>],
+        delta_nabla_b: &mut [Array2<f64>],
+        activations: &mut [Array2<f64>],
+        post_biases: &mut [Array2<f64>],
     ) {
         let mut previous_output: &mut Array2<f64> = &mut input.clone(); // output from the previous layer
-        activations[0].assign(&previous_output);
+        activations[0].assign(previous_output);
         // feedforward
         let mut z: Array2<f64>;
         for (i, layer) in self.layers.iter().enumerate() {
             z = layer.weights.dot(previous_output);
             z += &layer.biases;
             post_biases[i + 1].assign(&z);
-            z.mapv_inplace(layer.activation_function);
+            z.mapv_inplace(|v| layer.activation.apply(v));
             previous_output = &mut z;
-            activations[i + 1].assign(&previous_output);
+            activations[i + 1].assign(previous_output);
         }
 
         // backward pass
         let last_activation = activations.last().unwrap();
         let delta: &mut Array2<f64> = &mut cost_derivative(last_activation, truth);
-        delta.zip_mut_with(&post_biases.last().unwrap(), |d, s| *d *= (self.layers.last().unwrap().activation_function_prime)(*s));
+        delta.zip_mut_with(post_biases.last().unwrap(), |d, s| {
+            *d *= self.layers.last().unwrap().activation.derivative(*s)
+        });
         let nabla_b_len = delta_nabla_b.len();
-        delta_nabla_b[nabla_b_len - 1].assign(&delta);
+        delta_nabla_b[nabla_b_len - 1].assign(delta);
         let nabla_w_len = delta_nabla_w.len();
-        
+
         delta_nabla_w[nabla_w_len - 1].assign(&delta.dot(&activations[activations.len() - 2].t()));
-        
+
         // skip last one because its the output layer
         // skip first one cause we always adjust the next layer
         for (l, post_bias) in post_biases.iter_mut().enumerate().skip(1).rev().skip(1) {
-            post_bias.mapv_inplace(self.layers[l - 1].activation_function_prime);
-            
+            post_bias.mapv_inplace(|v| self.layers[l - 1].activation.derivative(v));
+
             *delta = self.layers[l].weights.t().dot(delta);
             delta.zip_mut_with(post_bias, |d, s| *d *= s);
             delta_nabla_b[l - 1].assign(delta);
@@ -193,7 +214,7 @@ impl NeuralNetwork {
 pub fn print_matrix<T: Display>(matrix: &ArrayView<T, Ix2>) {
     for row in matrix.rows() {
         for cell in row {
-            print!("{:.4}, ", cell);
+            print!("{cell:.4}, ");
         }
         println!();
     }
