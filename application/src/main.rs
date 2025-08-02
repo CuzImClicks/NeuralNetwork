@@ -1,39 +1,28 @@
-use std::process::exit;
 use ndarray::{arr2, Array2};
-use num_traits::Pow;
-use neural_net::datasets;
-use neural_net::layers::{default_leaky_relu, default_linear, default_sigmoid, default_tanh};
+use neural_net::layers::{default_linear, default_sigmoid};
 use neural_net::neural_net::{print_matrix, NeuralNetwork};
-
+use num_traits::Pow;
 
 fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
     let mut dataset = Vec::new();
 
-    let mut x  = low;
+    let mut x = low;
     let mut y: f64;
     // x=16sin^3(x) y=13cos(x)-5cos(2x)-2cos(3x)-cos(4x)
     while x < high {
         y = low;
 
-        let s: f64 = x.signum() * (x / 16.0).abs().pow(1.0/3.0);
+        let s: f64 = x.signum() * (x / 16.0).abs().pow(1.0 / 3.0);
         let A: f64 = -6.0 + 18.0 * s.powi(2) - 8.0 * s.pow(4.0);
         let B: f64 = (11.0 + 8.0 * s.pow(2.0)) * (1.0 - s.powi(2)).sqrt();
         let upper = A + B;
         let lower = A - B;
         while y < high {
             if y <= upper && y >= lower {
-                dataset.push((
-                    arr2(&[[x], [y]]),
-                    arr2(&[[1_f64]])
-                    )
-                );
+                dataset.push((arr2(&[[x], [y]]), arr2(&[[1_f64]])));
                 //print!("X")
             } else {
-                dataset.push((
-                    arr2(&[[x], [y]]),
-                    arr2(&[[0_f64]])
-                )
-                );
+                dataset.push((arr2(&[[x], [y]]), arr2(&[[0_f64]])));
                 //print!("_")
             }
             y += step;
@@ -41,10 +30,8 @@ fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2
         x += step;
         println!();
     }
-    
+
     dataset
-
-
 }
 
 fn main() {
@@ -62,18 +49,21 @@ fn main() {
     n.train(dataset, num_epochs, 20, 30, 0.001, 0.0);
 
     let elapsed = start.elapsed();
-    println!("Elapsed: {:?}", elapsed);
-    println!("{:.2?} epochs/s", (num_epochs as f32) / elapsed.as_secs_f32());
+    println!("Elapsed: {elapsed:?}");
+    println!(
+        "{:.2?} epochs/s",
+        (num_epochs as f32) / elapsed.as_secs_f32()
+    );
 
     println!("\nWeights:");
     for (i, l) in n.layers.iter().enumerate() {
-        println!("{}", i);
+        println!("{i}");
         print_matrix(&l.weights.view());
     }
 
     println!("\nBiases: ");
     for (i, l) in n.layers.iter().enumerate() {
-        println!("{}", i);
+        println!("{i}");
         print_matrix(&l.biases.view());
     }
 
