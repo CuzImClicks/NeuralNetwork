@@ -2,6 +2,7 @@ use crate::layers::Layer;
 use ndarray::{Array2, ArrayBase, ArrayView, Ix2, OwnedRepr};
 use rand::prelude::SliceRandom;
 use std::fmt::Display;
+use log::info;
 
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>
@@ -98,7 +99,7 @@ impl NeuralNetwork {
             {
                 let elapsed = start.elapsed();
                 let loss = self.validate(&validation_inputs, &validation_truths);
-                println!("Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}");
+                info!("Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}");
                 if loss.is_nan() {
                     panic!("Loss is NaN. Training aborted.");
                 }
@@ -168,7 +169,7 @@ impl NeuralNetwork {
 
         // backward pass
         let last_activation = activations.last().unwrap();
-        let mut delta: &mut Array2<f64> = &mut cost_derivative(last_activation, truth);
+        let delta: &mut Array2<f64> = &mut cost_derivative(last_activation, truth);
         delta.zip_mut_with(&post_biases.last().unwrap(), |d, s| *d *= (self.layers.last().unwrap().activation_function_prime)(*s));
         let nabla_b_len = delta_nabla_b.len();
         delta_nabla_b[nabla_b_len - 1].assign(&delta);
