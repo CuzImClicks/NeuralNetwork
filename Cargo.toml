@@ -5,11 +5,13 @@ members = ["neural_net", "application"]
 [workspace.dependencies]
 ndarray = {version = "0.16.1", features = ["serde"]}
 num-traits = "0.2.18"
-rand = "0.8.5"
+rand = "0.9.2"
 log = "0.4.27"
 serde = {version = "1.0", features = ["derive"]}
 
 [workspace.dev-dependencies]
 criterion = "0.5.1"
 
-
+[profile.release]
+debug = true
+split-debuginfo = "packed"

@@ -24,4 +24,4 @@ name = "train"
 harness = false
 
 [features]
-logging = []
+loss = []

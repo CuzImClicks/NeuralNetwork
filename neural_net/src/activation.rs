@@ -13,47 +13,47 @@ impl Activation {
     pub fn apply(&self, x: f64) -> f64 {
         match self {
             Self::Sigmoid => 1.0 / (1.0 + (-x).exp()),
-            Activation::ReLU => {
+            Self::ReLU => {
                 if x > 0.0 {
                     x
                 } else {
                     0.0
                 }
             }
-            Activation::LeakyReLU => {
+            Self::LeakyReLU => {
                 if x > 0.0 {
                     x
                 } else {
                     0.01 * x
                 }
             }
-            Activation::Tanh => x.tanh(),
-            Activation::Linear => x,
+            Self::Tanh => x.tanh(),
+            Self::Linear => x,
         }
     }
 
     pub fn derivative(&self, x: f64) -> f64 {
         match self {
-            Activation::Sigmoid => {
+            Self::Sigmoid => {
                 let s = 1.0 / (1.0 + (-x).exp());
                 s * (1.0 - s)
             }
-            Activation::ReLU => {
+            Self::ReLU => {
                 if x > 0.0 {
                     1.0
                 } else {
                     0.0
                 }
             }
-            Activation::LeakyReLU => {
+            Self::LeakyReLU => {
                 if x > 0.0 {
                     1.0
                 } else {
                     0.01
                 }
             }
-            Activation::Tanh => 1.0 - x.tanh().powi(2),
-            Activation::Linear => 1.0,
+            Self::Tanh => x.tanh().mul_add(-x.tanh(), 1.0),
+            Self::Linear => 1.0,
         }
     }
 }
