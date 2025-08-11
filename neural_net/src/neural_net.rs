@@ -2,12 +2,15 @@ use crate::{layers::Layer, loss::LossFunction};
 use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
 use rand::{prelude::SliceRandom, Rng};
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 struct TrainingData {
     nabla_w: Vec<Array2<f64>>,
     nabla_b: Vec<Array2<f64>>,

@@ -39,7 +39,7 @@ fn bench_train(c: &mut Criterion) {
     group.bench_function("train_x2", |b| {
         b.iter(|| {
             let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                network.train(dataset.clone(), 10, 10, 5, 0.001, 0.0, &mut rng());
+                network.train(dataset.clone(), 10, 10, 5, 0.001, 0.0, &mut rng(), neural_net::loss::LossFunction::BinaryCrossEntropy);
             }));
             if result.is_err() {
                 panic_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
