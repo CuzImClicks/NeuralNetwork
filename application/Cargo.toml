@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-neural_net = { path = "../neural_net", features = ["logging"] }
+neural_net = { path = "../neural_net", features = [] }
 ndarray = { workspace = true }
 rand = { workspace = true }
 num-traits = { workspace = true }
+env_logger = "0.11.8"
+plotters = "0.3.7"

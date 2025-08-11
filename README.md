@@ -1,6 +1,11 @@
 
 ### Neural Network
 
+- [] All views
+- [] Tests
+- [] Seeded RNG
+
+
 ### 0. base
 Elapsed: 22.2500019s
 44943.82 epochs/s
@@ -88,8 +93,8 @@ fn main() {
 
 - [ ] Layers
   - [ ] TODO
-- [ ] Activation Functions
-- [ ] Loss Functions
+- [x] Activation Functions
+- [x] Loss Functions
 - [ ] Optimizers
   - [ ] GPU?
   - [ ] Multi-threading?
