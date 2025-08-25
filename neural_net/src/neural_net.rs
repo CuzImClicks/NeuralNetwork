@@ -1,9 +1,9 @@
 use crate::{layers::Layer, loss::LossFunction};
 use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
-use rand::{prelude::SliceRandom, Rng};
+use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {
@@ -100,9 +100,7 @@ impl NeuralNetwork {
 
         #[cfg(feature = "loss")]
         let validation_pairs = {
-            let val_size = ((batches.len() as f64 * 0.1).ceil() as usize)
-                .max(1)
-                .min(10);
+            let val_size = ((batches.len() as f64 * 0.1).ceil() as usize).clamp(1, 10);
             batches.drain(..val_size).collect::<Vec<_>>()
         };
         #[cfg(feature = "loss")]

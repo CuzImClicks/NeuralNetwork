@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use neural_net::layers::default_leaky_relu;
 use neural_net::neural_net::NeuralNetwork;
 

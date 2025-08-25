@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use ndarray::arr2;
 use neural_net::activation::Activation;
 use neural_net::layers::Layer;
@@ -39,7 +39,16 @@ fn bench_train(c: &mut Criterion) {
     group.bench_function("train_x2", |b| {
         b.iter(|| {
             let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                network.train(dataset.clone(), 10, 10, 5, 0.001, 0.0, &mut rng(), neural_net::loss::LossFunction::BinaryCrossEntropy);
+                network.train(
+                    dataset.clone(),
+                    10,
+                    10,
+                    5,
+                    0.001,
+                    0.0,
+                    &mut rng(),
+                    neural_net::loss::LossFunction::BinaryCrossEntropy,
+                );
             }));
             if result.is_err() {
                 panic_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
