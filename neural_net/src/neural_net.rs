@@ -3,7 +3,7 @@ use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::PathBuf};
+use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {

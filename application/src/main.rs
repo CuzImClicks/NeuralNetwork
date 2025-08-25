@@ -1,7 +1,12 @@
-use ndarray::{arr2, Array2};
-use neural_net::layers::{default_linear, default_sigmoid};
-use neural_net::neural_net::{print_matrix, NeuralNetwork};
+use std::path::Path;
+use anyhow::Result;
+use ndarray::{Array2, arr2};
+use neural_net::layers::{default_linear, default_relu};
+use neural_net::loss::LossFunction::BinaryCrossEntropy;
+use neural_net::neural_net::{NeuralNetwork, print_matrix};
+use neural_net::saving_and_loading::{load_from_file, save_to_file, Format};
 use num_traits::Pow;
+use rand::rng;
 
 fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
     let mut dataset = Vec::new();
@@ -34,19 +39,32 @@ fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2
     dataset
 }
 
-fn main() {
+fn main() -> Result<()> {
+    //let a = load_from_file::<NeuralNetwork>(Path::new("./neural_network.nn"), Format::Binary)?;
+    
     let mut n = NeuralNetwork::new(vec![
-        default_sigmoid(2, 6),
-        default_sigmoid(6, 6),
-        default_sigmoid(6, 6),
-        default_linear(6, 1),
+        default_relu(2, 8),
+        default_relu(8, 4),
+        default_relu(4, 2),
+        default_linear(2, 1),
     ]);
 
     let start = std::time::Instant::now();
 
     let num_epochs: usize = 2308;
     let dataset = gen_heart_dataset(-16.0, 16.0, 0.1); // datasets::gen_circle_dataset(0.0, 5.0, 0.01);
-    n.train(dataset, num_epochs, 20, 30, 0.001, 0.0);
+    n.train(
+        dataset,
+        num_epochs,
+        20,
+        30,
+        0.01,
+        0.0,
+        &mut rng(),
+        BinaryCrossEntropy,
+    );
+    
+    save_to_file(Path::new("./neural_network.json"), &n, Format::Json)?;
 
     let elapsed = start.elapsed();
     println!("Elapsed: {elapsed:?}");
@@ -66,6 +84,8 @@ fn main() {
         println!("{i}");
         print_matrix(&l.biases.view());
     }
+    
+    Ok(())
 
     //let mut i: f64 = 0.0;
     //let mut input = Array2::zeros((1, 1));

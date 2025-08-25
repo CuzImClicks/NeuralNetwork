@@ -2,11 +2,13 @@
 mod tests {
     use super::*;
     use crate::{
-        datasets::gen_xor_dataset, layers::{default_leaky_relu, default_sigmoid}, loss::LossFunction,
+        datasets::gen_xor_dataset,
+        layers::{default_leaky_relu, default_sigmoid},
+        loss::LossFunction,
         neural_net::NeuralNetwork,
     };
-    use ndarray::{array, Array2, ArrayView2};
-    use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+    use ndarray::{Array2, ArrayView2, array};
+    use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
 
     /// Exhaustive 3-bit parity dataset: input shape (3,1), output shape (1,1)
     fn gen_parity3_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
@@ -70,11 +72,7 @@ mod tests {
     #[test]
     fn xor() {
         let mut rng = ChaCha20Rng::seed_from_u64(42);
-        let mut net = NeuralNetwork::new(
-            vec![
-                default_sigmoid(2, 2),
-                default_sigmoid(2, 1)]
-        );
+        let mut net = NeuralNetwork::new(vec![default_sigmoid(2, 2), default_sigmoid(2, 1)]);
 
         let data = gen_xor_dataset();
 
@@ -96,10 +94,7 @@ mod tests {
                 .collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>(),
             &crate::loss::LossFunction::BinaryCrossEntropy,
         );
-        assert!(
-            loss < 0.01,
-            "Expected near-zero training loss, got {loss}"
-        );
+        assert!(loss < 0.01, "Expected near-zero training loss, got {loss}");
 
         for (input, truth) in data {
             let output = net.feedforward(input.view());
