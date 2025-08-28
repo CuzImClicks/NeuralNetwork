@@ -1,12 +1,12 @@
-use std::path::Path;
 use anyhow::Result;
 use ndarray::{Array2, arr2};
 use neural_net::layers::{default_linear, default_relu};
 use neural_net::loss::LossFunction::BinaryCrossEntropy;
 use neural_net::neural_net::{NeuralNetwork, print_matrix};
-use neural_net::saving_and_loading::{load_from_file, save_to_file, Format};
+use neural_net::saving_and_loading::{Format, load_from_file, save_to_file};
 use num_traits::Pow;
 use rand::rng;
+use std::path::Path;
 
 fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
     let mut dataset = Vec::new();
@@ -41,7 +41,7 @@ fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2
 
 fn main() -> Result<()> {
     //let a = load_from_file::<NeuralNetwork>(Path::new("./neural_network.nn"), Format::Binary)?;
-    
+
     let mut n = NeuralNetwork::new(vec![
         default_relu(2, 8),
         default_relu(8, 4),
@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         &mut rng(),
         BinaryCrossEntropy,
     );
-    
+
     save_to_file(Path::new("./neural_network.json"), &n, Format::Json)?;
 
     let elapsed = start.elapsed();
@@ -84,7 +84,7 @@ fn main() -> Result<()> {
         println!("{i}");
         print_matrix(&l.biases.view());
     }
-    
+
     Ok(())
 
     //let mut i: f64 = 0.0;

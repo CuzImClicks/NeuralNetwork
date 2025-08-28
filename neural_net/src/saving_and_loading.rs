@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use std::{
     fs::{self, File},
     io::Write,
@@ -11,6 +11,15 @@ use serde::{Deserialize, Serialize};
 pub enum Format {
     Binary,
     Json,
+}
+
+impl Format {
+    fn extention(&self) -> &'static str {
+        match self {
+            Format::Binary => "bin",
+            Format::Json => "json",
+        }
+    }
 }
 
 fn to_bytes<T: Serialize>(value: &T, fmt: Format) -> Result<Vec<u8>> {
@@ -33,8 +42,11 @@ fn from_bytes<T: for<'de> Deserialize<'de>>(bytes: &[u8], fmt: Format) -> Result
 
 pub fn save_to_file<T: Serialize>(path: impl AsRef<Path>, value: &T, fmt: Format) -> Result<()> {
     let bytes = to_bytes(value, fmt)?;
-    let mut f =
-        File::create(path.as_ref()).with_context(|| format!("creating {:?}", path.as_ref()))?;
+    let path = path.as_ref();
+    if path.extension().is_none_or(|it| it == fmt.extention()) {
+        bail!("Trying to create file `{path:?}` with wrong extension for data type `{fmt:?}`")
+    }
+    let mut f = File::create(path).with_context(|| format!("creating {:?}", path))?;
 
     f.write_all(&bytes)?;
 

@@ -1,9 +1,14 @@
-use crate::{layers::Layer, loss::LossFunction};
+use crate::{
+    layers::Layer,
+    loss::LossFunction,
+    saving_and_loading::{Format, save_to_file},
+};
+use anyhow::Result;
 use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{fmt::Display, path::Path};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {
@@ -254,6 +259,16 @@ impl NeuralNetwork {
             delta_nabla_w[l].assign(&delta.dot(&activations[l].t()));
         }
     }
+
+    fn save_checkpoint(&self, epoch: usize) -> Result<()> {
+        save_to_file(
+            Path::new(&format!("checkpoint_{epoch}.nn")),
+            self,
+            Format::Binary,
+        )?;
+
+        Ok(())
+    }
 }
 
 pub fn print_matrix<T: Display>(matrix: &ArrayView<T, Ix2>) {
@@ -270,16 +285,4 @@ pub fn reset_matrix<O: num_traits::Zero + Copy>(i: &mut [Array2<O>]) {
     for x in i.iter_mut() {
         x.fill(O::zero());
     }
-}
-
-fn approx_eq(a: f64, b: f64, tol: f64) -> bool {
-    let diff = (a - b).abs();
-    diff <= tol.max(tol * b.abs().max(a.abs()))
-}
-
-fn array_approx_eq(a: &Array2<f64>, b: &Array2<f64>, tol: f64) -> bool {
-    if a.shape() != b.shape() {
-        return false;
-    }
-    a.iter().zip(b.iter()).all(|(x, y)| approx_eq(*x, *y, tol))
 }
