@@ -14,7 +14,7 @@ pub enum Format {
 }
 
 impl Format {
-    fn extention(&self) -> &'static str {
+    fn extension(&self) -> &'static str {
         match self {
             Format::Binary => "bin",
             Format::Json => "json",
@@ -43,7 +43,7 @@ fn from_bytes<T: for<'de> Deserialize<'de>>(bytes: &[u8], fmt: Format) -> Result
 pub fn save_to_file<T: Serialize>(path: impl AsRef<Path>, value: &T, fmt: Format) -> Result<()> {
     let bytes = to_bytes(value, fmt)?;
     let path = path.as_ref();
-    if path.extension().is_none_or(|it| it == fmt.extention()) {
+    if path.extension().is_none_or(|it| it != fmt.extension()) {
         bail!("Trying to create file `{path:?}` with wrong extension for data type `{fmt:?}`")
     }
     let mut f = File::create(path).with_context(|| format!("creating {:?}", path))?;
