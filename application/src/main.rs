@@ -1,13 +1,13 @@
-use anyhow::Result;
-use ndarray::{Array2, arr2};
-use neural_net::datasets;
-use neural_net::layers::{default_linear, default_relu};
-use neural_net::loss::LossFunction::BinaryCrossEntropy;
-use neural_net::neural_net::{NeuralNetwork, print_matrix};
-use neural_net::saving_and_loading::{Format, load_from_file, save_to_file};
+use ndarray::{arr2, Array2};
+use neural_net::layers::{default_leaky_relu, default_sigmoid};
+use neural_net::neural_net::{print_matrix, NeuralNetwork};
 use num_traits::Pow;
+use plotters::style::RGBColor;
 use rand::rng;
-use std::path::Path;
+
+use crate::visualization::plot_heatmap;
+
+mod visualization;
 
 fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
     let mut dataset = Vec::new();
@@ -26,19 +26,17 @@ fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2
         while y < high {
             if y <= upper && y >= lower {
                 dataset.push((arr2(&[[x], [y]]), arr2(&[[1_f64]])));
-                //print!("X")
             } else {
                 dataset.push((arr2(&[[x], [y]]), arr2(&[[0_f64]])));
-                //print!("_")
             }
             y += step;
         }
         x += step;
-        println!();
     }
 
     dataset
 }
+
 
 fn main() -> Result<()> {
     let mut n = load_from_file::<NeuralNetwork>(Path::new("./circle.nn"), Format::Binary)
@@ -89,7 +87,18 @@ fn main() -> Result<()> {
         print_matrix(&l.biases.view());
     }
 
-    Ok(())
+    inspect_predictions(&n, &dataset);
+
+    plot_heatmap(
+        &n,
+        (-16.0, 16.0),
+        (-16.0, 16.0),
+        (200, 200),
+        "heatmap.png",
+        RGBColor(0, 0, 255),
+        RGBColor(255, 0, 0),
+    )
+    .unwrap();
 
     //let mut i: f64 = 0.0;
     //let mut input = Array2::zeros((1, 1));
