@@ -140,7 +140,7 @@ impl NeuralNetwork {
             {
                 let loss = self.validate(&views, &loss_function);
                 println!(
-                    "Epoch {epoch} - Loss: {loss} - Time: {elapsed:?}|{:?}",
+                    "Epoch {epoch} - Loss: {loss} - Time: {elapsed:?} | {:?}",
                     start.elapsed() - elapsed
                 );
                 if loss.is_nan() {
@@ -261,13 +261,7 @@ impl NeuralNetwork {
     }
 
     fn save_checkpoint(&self, epoch: usize) -> Result<()> {
-        save_to_file(
-            Path::new(&format!("checkpoint_{epoch}.nn")),
-            self,
-            Format::Binary,
-        )?;
-
-        Ok(())
+        save_to_file(&format!("checkpoint_{epoch}.bin"), self, Format::Binary)
     }
 }
 

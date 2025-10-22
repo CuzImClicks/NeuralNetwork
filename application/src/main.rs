@@ -1,5 +1,6 @@
 use anyhow::Result;
 use ndarray::{Array2, arr2};
+use neural_net::datasets;
 use neural_net::layers::{default_linear, default_relu};
 use neural_net::loss::LossFunction::BinaryCrossEntropy;
 use neural_net::neural_net::{NeuralNetwork, print_matrix};
@@ -40,19 +41,22 @@ fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2
 }
 
 fn main() -> Result<()> {
-    //let a = load_from_file::<NeuralNetwork>(Path::new("./neural_network.nn"), Format::Binary)?;
+    let mut n = load_from_file::<NeuralNetwork>(Path::new("./circle.nn"), Format::Binary)
+        .unwrap_or_else(|_| {
+            NeuralNetwork::new(vec![
+                default_relu(2, 8),
+                default_relu(8, 4),
+                default_relu(4, 2),
+                default_linear(2, 1),
+            ])
+        });
 
-    let mut n = NeuralNetwork::new(vec![
-        default_relu(2, 8),
-        default_relu(8, 4),
-        default_relu(4, 2),
-        default_linear(2, 1),
-    ]);
+
 
     let start = std::time::Instant::now();
 
     let num_epochs: usize = 2308;
-    let dataset = gen_heart_dataset(-16.0, 16.0, 0.1); // datasets::gen_circle_dataset(0.0, 5.0, 0.01);
+    let dataset = datasets::gen_circle_dataset(0.0, 5.0, 0.01); // gen_heart_dataset(-16.0, 16.0, 0.1);
     n.train(
         dataset,
         num_epochs,
@@ -64,7 +68,7 @@ fn main() -> Result<()> {
         BinaryCrossEntropy,
     );
 
-    save_to_file(Path::new("./neural_network.json"), &n, Format::Json)?;
+    save_to_file(Path::new("./circle.json"), &n, Format::Json)?;
 
     let elapsed = start.elapsed();
     println!("Elapsed: {elapsed:?}");
