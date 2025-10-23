@@ -2,13 +2,14 @@ use crate::{
     layers::Layer,
     loss::LossFunction,
     saving_and_loading::{Format, save_to_file},
+    training_events::{Callbacks, EpochStats, TrainingEvent},
 };
 use anyhow::Result;
 use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::Path};
+use std::{fmt::Display, time::Instant};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {
@@ -70,7 +71,14 @@ impl NeuralNetwork {
         lambda: f64,
         rng: &mut impl Rng,
         loss_function: LossFunction,
+        mut callbacks: Callbacks,
     ) {
+        let training_start = Instant::now();
+        callbacks.on_event(TrainingEvent::TrainingBegin {
+            start_time: training_start,
+            total_epochs: epochs,
+        });
+
         let weight_size: Vec<Array2<f64>> = self
             .layers
             .iter()
@@ -117,7 +125,7 @@ impl NeuralNetwork {
         for epoch in 0..epochs {
             batches.shuffle(rng);
 
-            let start = std::time::Instant::now();
+            let epoch_start = Instant::now();
 
             for batch in batches.chunks(batch_size).cycle().take(batches_per_epoch) {
                 self.update_weights_biases(
@@ -129,25 +137,33 @@ impl NeuralNetwork {
                 );
             }
 
-            let elapsed = start.elapsed();
-
+            let backpropagation_elapsed = epoch_start.elapsed();
             #[cfg(not(feature = "loss"))]
             {
-                println!("Epoch {epoch} - Time: {elapsed:?}");
+                callbacks.on_event(TrainingEvent::EpochEnd {
+                    stats: EpochStats {
+                        epoch,
+                        duration: elapsed,
+                    },
+                })
             }
-
             #[cfg(feature = "loss")]
             {
                 let loss = self.validate(&views, &loss_function);
-                println!(
-                    "Epoch {epoch} - Loss: {loss} - Time: {elapsed:?} | {:?}",
-                    start.elapsed() - elapsed
-                );
-                if loss.is_nan() {
-                    panic!("Loss is NaN. Training aborted.");
-                }
+                callbacks.on_event(TrainingEvent::EpochEnd {
+                    stats: EpochStats {
+                        epoch,
+                        loss,
+                        loss_elapsed: epoch_start.elapsed() - backpropagation_elapsed,
+                        backpropagation_elapsed,
+                    },
+                });
             }
         }
+
+        callbacks.on_event(TrainingEvent::TrainingEnd {
+            end_time: training_start.elapsed(),
+        });
     }
 
     fn update_weights_biases(
@@ -208,6 +224,7 @@ impl NeuralNetwork {
         }
     }
 
+    #[allow(non_snake_case)]
     fn backpropagation(
         &mut self,
         input: &Array2<f64>,

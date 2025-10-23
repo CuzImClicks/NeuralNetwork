@@ -1,60 +1,34 @@
-use ndarray::{arr2, Array2};
-use neural_net::layers::{default_leaky_relu, default_sigmoid};
-use neural_net::neural_net::{print_matrix, NeuralNetwork};
-use num_traits::Pow;
-use plotters::style::RGBColor;
-use rand::rng;
+use std::path::Path;
 
-use crate::visualization::plot_heatmap;
+use crate::visualization::plot_rgb;
+use anyhow::Result;
+use neural_net::datasets::gen_rainbow_dataset;
+use neural_net::layers::default_relu;
+use neural_net::loss::LossFunction;
+use neural_net::neural_net::NeuralNetwork;
+use neural_net::saving_and_loading::{Format, load_from_file};
+use neural_net::training_events::{Callbacks, Logger};
+use rand::rng;
 
 mod visualization;
 
-fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
-    let mut dataset = Vec::new();
-
-    let mut x = low;
-    let mut y: f64;
-    // x=16sin^3(x) y=13cos(x)-5cos(2x)-2cos(3x)-cos(4x)
-    while x < high {
-        y = low;
-
-        let s: f64 = x.signum() * (x / 16.0).abs().pow(1.0 / 3.0);
-        let A: f64 = -6.0 + 18.0 * s.powi(2) - 8.0 * s.pow(4.0);
-        let B: f64 = (11.0 + 8.0 * s.pow(2.0)) * (1.0 - s.powi(2)).sqrt();
-        let upper = A + B;
-        let lower = A - B;
-        while y < high {
-            if y <= upper && y >= lower {
-                dataset.push((arr2(&[[x], [y]]), arr2(&[[1_f64]])));
-            } else {
-                dataset.push((arr2(&[[x], [y]]), arr2(&[[0_f64]])));
-            }
-            y += step;
-        }
-        x += step;
-    }
-
-    dataset
-}
-
-
 fn main() -> Result<()> {
-    let mut n = load_from_file::<NeuralNetwork>(Path::new("./circle.nn"), Format::Binary)
+    env_logger::init();
+    let mut n = load_from_file::<NeuralNetwork>(Path::new("./circle.bin"), Format::Binary)
         .unwrap_or_else(|_| {
             NeuralNetwork::new(vec![
                 default_relu(2, 8),
+                default_relu(8, 8),
+                default_relu(8, 8),
                 default_relu(8, 4),
-                default_relu(4, 2),
-                default_linear(2, 1),
+                default_relu(4, 3),
             ])
         });
 
-
-
     let start = std::time::Instant::now();
 
-    let num_epochs: usize = 2308;
-    let dataset = datasets::gen_circle_dataset(0.0, 5.0, 0.01); // gen_heart_dataset(-16.0, 16.0, 0.1);
+    let num_epochs: usize = 10000;
+    let dataset = gen_rainbow_dataset(-20.0, 20.0, 0.1); //gen_heart_dataset(-16.0, 16.0, 0.1); // datasets::gen_circle_dataset(0.0, 5.0, 0.01); //
     n.train(
         dataset,
         num_epochs,
@@ -63,10 +37,11 @@ fn main() -> Result<()> {
         0.01,
         0.0,
         &mut rng(),
-        BinaryCrossEntropy,
+        LossFunction::BinaryCrossEntropy,
+        Callbacks::new(vec![Box::new(Logger)]),
     );
 
-    save_to_file(Path::new("./circle.json"), &n, Format::Json)?;
+    //save_to_file(Path::new("./circle.json"), &n, Format::Json)?;
 
     let elapsed = start.elapsed();
     println!("Elapsed: {elapsed:?}");
@@ -75,38 +50,14 @@ fn main() -> Result<()> {
         (num_epochs as f32) / elapsed.as_secs_f32()
     );
 
-    println!("\nWeights:");
-    for (i, l) in n.layers.iter().enumerate() {
-        println!("{i}");
-        print_matrix(&l.weights.view());
-    }
-
-    println!("\nBiases: ");
-    for (i, l) in n.layers.iter().enumerate() {
-        println!("{i}");
-        print_matrix(&l.biases.view());
-    }
-
-    inspect_predictions(&n, &dataset);
-
-    plot_heatmap(
+    plot_rgb(
         &n,
-        (-16.0, 16.0),
-        (-16.0, 16.0),
-        (200, 200),
+        (-21.0, 21.0),
+        (-21.0, 21.0),
+        (1000, 1000),
         "heatmap.png",
-        RGBColor(0, 0, 255),
-        RGBColor(255, 0, 0),
     )
     .unwrap();
 
-    //let mut i: f64 = 0.0;
-    //let mut input = Array2::zeros((1, 1));
-    //let mut output = Array2::zeros((1,1));
-    //while i <= 10.0 {
-    //    input[[0, 0]] = i;
-    //    output.assign(&n.feedforward(&input));
-    //    println!("{:.4?} - {} -> {}", i, i.powi(2), output[[0, 0]]);
-    //    i += 0.5;
-    //}
+    Ok(())
 }

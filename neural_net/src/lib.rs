@@ -5,6 +5,7 @@ pub mod layers;
 pub mod loss;
 pub mod neural_net;
 pub mod saving_and_loading;
+pub mod training_events;
 
 #[cfg(test)]
 mod tests;

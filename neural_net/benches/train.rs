@@ -3,6 +3,7 @@ use ndarray::arr2;
 use neural_net::activation::Activation;
 use neural_net::layers::Layer;
 use neural_net::neural_net::NeuralNetwork;
+use neural_net::training_events::Callbacks;
 use rand::rng;
 use std::panic;
 use std::panic::AssertUnwindSafe;
@@ -48,6 +49,7 @@ fn bench_train(c: &mut Criterion) {
                     0.0,
                     &mut rng(),
                     neural_net::loss::LossFunction::BinaryCrossEntropy,
+                    Callbacks::default(),
                 );
             }));
             if result.is_err() {

@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{
         datasets::gen_xor_dataset,
         layers::{default_leaky_relu, default_sigmoid},
         loss::LossFunction,
         neural_net::NeuralNetwork,
+        training_events::Callbacks,
     };
     use ndarray::{Array2, ArrayView2, array};
     use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
@@ -49,6 +49,7 @@ mod tests {
             0.0,
             &mut rng,
             LossFunction::BinaryCrossEntropy,
+            Callbacks::default(),
         );
 
         let training_loss = nn.validate(&train_views, &LossFunction::BinaryCrossEntropy);
@@ -85,6 +86,7 @@ mod tests {
             0.0,
             &mut rng,
             crate::loss::LossFunction::BinaryCrossEntropy,
+            Callbacks::default(),
         );
 
         let loss = net.validate(

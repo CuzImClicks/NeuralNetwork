@@ -1,7 +1,7 @@
-use ndarray::array;
+use anyhow::{Result, anyhow};
+use ndarray::{Axis, array};
 use neural_net::neural_net::NeuralNetwork;
 use plotters::prelude::*;
-use std::error::Error;
 
 /// Linear interpolation between two RGBColor endpoints.
 fn interpolate_color(low: &RGBColor, high: &RGBColor, t: f64) -> RGBColor {
@@ -20,17 +20,15 @@ fn interpolate_color(low: &RGBColor, high: &RGBColor, t: f64) -> RGBColor {
     RGBColor(r, g, b)
 }
 
-/// Draws a heatmap of `nn`'s scalar output over the given x/y range. The lowest network
-/// output becomes `low_color`, highest becomes `high_color`. Saves to `filename`.
 pub fn plot_heatmap(
     nn: &NeuralNetwork,
     x_range: (f64, f64),
     y_range: (f64, f64),
-    resolution: (usize, usize), // number of cells along x and y
+    resolution: (usize, usize),
     filename: &str,
     low_color: RGBColor,
     high_color: RGBColor,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let (xmin, xmax) = x_range;
     let (ymin, ymax) = y_range;
     assert!(xmax > xmin && ymax > ymin, "Invalid ranges");
@@ -40,7 +38,6 @@ pub fn plot_heatmap(
         "Resolution must be at least 2 in each axis"
     );
 
-    // Sample the network over the grid and track min/max values.
     let mut values = vec![0.0f64; nx * ny];
     let mut min_v = f64::INFINITY;
     let mut max_v = f64::NEG_INFINITY;
@@ -62,18 +59,14 @@ pub fn plot_heatmap(
         }
     }
 
-    // avoid degenerate range
     let range = (max_v - min_v).max(std::f64::EPSILON);
 
-    // Prepare drawing area with extra width for colorbar
-    let image_size = (1000, 800); // width x height
+    let image_size = (1000, 800);
     let root = BitMapBackend::new(filename, image_size).into_drawing_area();
     root.fill(&WHITE)?;
 
-    // Split left/right: 80% heatmap, 20% legend
-    let (heatmap_area, legend_area) = root.split_horizontally((80).percent_width());
+    let (heatmap_area, _) = root.split_horizontally((80).percent_width());
 
-    // Build heatmap chart
     let mut chart = ChartBuilder::on(&heatmap_area)
         .margin(10)
         .caption("Network Output Heatmap", ("sans-serif", 18).into_font())
@@ -82,7 +75,6 @@ pub fn plot_heatmap(
         .build_cartesian_2d(xmin..xmax, ymin..ymax)?;
     chart.configure_mesh().draw()?;
 
-    // cell sizes in data coordinates
     let dx = (xmax - xmin) / ((nx - 1) as f64);
     let dy = (ymax - ymin) / ((ny - 1) as f64);
 
@@ -91,8 +83,78 @@ pub fn plot_heatmap(
         for iy in 0..ny {
             let y0 = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
             let v = values[ix + iy * nx];
-            let t = (v - min_v) / range; // normalized to [0,1]
+            let t = (v - min_v) / range;
             let color = interpolate_color(&low_color, &high_color, t);
+            chart.draw_series(std::iter::once(Rectangle::new(
+                [(x0, y0), (x0 + dx, y0 + dy)],
+                ShapeStyle::from(&color).filled(),
+            )))?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn plot_rgb(
+    nn: &NeuralNetwork,
+    x_range: (f64, f64),
+    y_range: (f64, f64),
+    resolution: (usize, usize),
+    filename: &str,
+) -> Result<()> {
+    let (xmin, xmax) = x_range;
+    let (ymin, ymax) = y_range;
+    assert!(xmax > xmin && ymax > ymin, "Invalid ranges");
+    let (nx, ny) = resolution;
+    assert!(
+        nx >= 2 && ny >= 2,
+        "Resolution must be at least 2 in each axis"
+    );
+
+    let mut values = vec![[0.0_f64; 3]; nx * ny];
+
+    for ix in 0..nx {
+        let x = xmin + (xmax - xmin) * (ix as f64) / ((nx - 1) as f64);
+        for iy in 0..ny {
+            let y = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
+            let input = array![[x], [y]];
+            let output = nn.feedforward(input.view());
+            let value = output.axis_iter(Axis(1)).collect::<Vec<_>>();
+            let slice = value[0]
+                .to_slice()
+                .ok_or_else(|| anyhow!("Could not convert to slice"))?;
+
+            values[ix + iy * nx] = slice.try_into()?;
+        }
+    }
+
+    let image_size = (1000, 800);
+    let root = BitMapBackend::new(filename, image_size).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let (heatmap_area, _) = root.split_horizontally((80).percent_width());
+
+    let mut chart = ChartBuilder::on(&heatmap_area)
+        .margin(10)
+        .caption("Network Output Heatmap", ("sans-serif", 18).into_font())
+        .x_label_area_size(35)
+        .y_label_area_size(35)
+        .build_cartesian_2d(xmin..xmax, ymin..ymax)?;
+    chart.configure_mesh().draw()?;
+
+    let dx = (xmax - xmin) / ((nx - 1) as f64);
+    let dy = (ymax - ymin) / ((ny - 1) as f64);
+
+    for ix in 0..nx {
+        let x0 = xmin + (xmax - xmin) * (ix as f64) / ((nx - 1) as f64);
+        for iy in 0..ny {
+            let y0 = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
+            let v = values[ix + iy * nx];
+
+            let r = (v[0] * 255.0).round().clamp(0.0, 255.0) as u8;
+            let g = (v[1] * 255.0).round().clamp(0.0, 255.0) as u8;
+            let b = (v[2] * 255.0).round().clamp(0.0, 255.0) as u8;
+            let color = RGBColor(r, g, b);
             chart.draw_series(std::iter::once(Rectangle::new(
                 [(x0, y0), (x0 + dx, y0 + dy)],
                 ShapeStyle::from(&color).filled(),
