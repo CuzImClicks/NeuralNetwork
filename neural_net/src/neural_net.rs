@@ -9,7 +9,7 @@ use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, time::Instant};
+use std::{fmt::Display, path::Path, time::Instant};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NeuralNetwork {
@@ -74,10 +74,13 @@ impl NeuralNetwork {
         mut callbacks: Callbacks,
     ) {
         let training_start = Instant::now();
-        callbacks.on_event(TrainingEvent::TrainingBegin {
-            start_time: training_start,
-            total_epochs: epochs,
-        });
+        callbacks.on_event(
+            &self,
+            TrainingEvent::TrainingBegin {
+                start_time: training_start,
+                total_epochs: epochs,
+            },
+        );
 
         let weight_size: Vec<Array2<f64>> = self
             .layers
@@ -150,20 +153,27 @@ impl NeuralNetwork {
             #[cfg(feature = "loss")]
             {
                 let loss = self.validate(&views, &loss_function);
-                callbacks.on_event(TrainingEvent::EpochEnd {
-                    stats: EpochStats {
-                        epoch,
-                        loss,
-                        loss_elapsed: epoch_start.elapsed() - backpropagation_elapsed,
-                        backpropagation_elapsed,
+                callbacks.on_event(
+                    &self,
+                    TrainingEvent::EpochEnd {
+                        stats: EpochStats {
+                            epoch,
+                            loss,
+                            loss_elapsed: epoch_start.elapsed() - backpropagation_elapsed,
+                            backpropagation_elapsed,
+                        },
                     },
-                });
+                );
             }
         }
 
-        callbacks.on_event(TrainingEvent::TrainingEnd {
-            end_time: training_start.elapsed(),
-        });
+        callbacks.on_event(
+            &self,
+            TrainingEvent::TrainingEnd {
+                end_time: training_start.elapsed(),
+                total_epochs: epochs,
+            },
+        );
     }
 
     fn update_weights_biases(
@@ -277,8 +287,8 @@ impl NeuralNetwork {
         }
     }
 
-    fn save_checkpoint(&self, epoch: usize) -> Result<()> {
-        save_to_file(&format!("checkpoint_{epoch}.bin"), self, Format::Binary)
+    pub fn save_checkpoint(&self, path: impl AsRef<Path>, format: Format) -> Result<()> {
+        save_to_file(path, self, format)
     }
 }
 

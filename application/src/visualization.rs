@@ -1,3 +1,5 @@
+use std::{f64, fs, path::Path};
+
 use anyhow::{Result, anyhow};
 use ndarray::{Axis, array};
 use neural_net::neural_net::NeuralNetwork;
@@ -20,12 +22,12 @@ fn interpolate_color(low: &RGBColor, high: &RGBColor, t: f64) -> RGBColor {
     RGBColor(r, g, b)
 }
 
-pub fn plot_heatmap(
+pub fn plot_heatmap<P: AsRef<Path>>(
     nn: &NeuralNetwork,
     x_range: (f64, f64),
     y_range: (f64, f64),
     resolution: (usize, usize),
-    filename: &str,
+    file: P,
     low_color: RGBColor,
     high_color: RGBColor,
 ) -> Result<()> {
@@ -62,7 +64,7 @@ pub fn plot_heatmap(
     let range = (max_v - min_v).max(std::f64::EPSILON);
 
     let image_size = (1000, 800);
-    let root = BitMapBackend::new(filename, image_size).into_drawing_area();
+    let root = BitMapBackend::new(&file, image_size).into_drawing_area();
     root.fill(&WHITE)?;
 
     let (heatmap_area, _) = root.split_horizontally((80).percent_width());
@@ -162,5 +164,85 @@ pub fn plot_rgb(
         }
     }
 
+    Ok(())
+}
+
+pub fn plot_line(
+    data: Vec<(f64, f64)>,
+    caption: &str,
+    filename: &str,
+    resolution: (u32, u32),
+    x_range: (f64, f64),
+    y_range: (f64, f64),
+) -> Result<()> {
+    let root = BitMapBackend::new(filename, resolution).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let (x_min, x_max) = x_range;
+    let (y_min, y_max) = y_range;
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(caption, ("sans-serif", 24))
+        .margin(10)
+        .x_label_area_size(35)
+        .y_label_area_size(35)
+        .build_cartesian_2d(x_min..x_max, y_min..y_max)?;
+
+    chart.configure_mesh().draw()?;
+
+    chart.draw_series(LineSeries::new(data, &BLUE))?;
+
+    root.present()?;
+    Ok(())
+}
+
+pub fn visualize_neural_network(nn: &NeuralNetwork, filename: &str) -> Result<()> {
+    let root = BitMapBackend::new(filename, (1200, 700)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut max_weight = 0.0;
+    let mut min_weight = 0.0;
+
+    let mut max_bias = 0.0;
+    let mut min_bias = 0.0;
+
+    nn.layers.iter().for_each(|it| {
+        it.weights.for_each(|weight| {
+            if *weight < min_weight {
+                min_weight = *weight;
+            }
+            if *weight > max_weight {
+                max_weight = *weight;
+            }
+        });
+        it.biases.for_each(|bias| {
+            if *bias < min_bias {
+                min_bias = *bias;
+            }
+            if *bias > max_bias {
+                max_bias = *bias;
+            }
+        });
+    });
+
+    let (width, height) = root.dim_in_pixel();
+
+    let left_pad = 100i32;
+    let right_pad = 100i32;
+    let top_pad = 60i32;
+    let bottom_pad = 60i32;
+
+    let usable_w = (width as i32) - left_pad - right_pad;
+    let usable_h = (height as i32) - top_pad - bottom_pad;
+
+    let layer_count = nn.layers.len();
+
+    let x_step = if layer_count > 1 {
+        usable_w as f64 / (layer_count as f64 - 1.0)
+    } else {
+        0.0
+    };
+
+    root.present()?;
     Ok(())
 }
