@@ -43,7 +43,7 @@ pub fn gen_circle_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, A
 }
 
 #[allow(non_snake_case)]
-fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
+pub fn gen_heart_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
     let mut dataset = Vec::new();
 
     let mut x = low;
@@ -101,6 +101,28 @@ pub fn gen_rainbow_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, 
             let h: f64 = hue(x, y);
             let (r, g, b) = hsv_to_rgb(h, 1.0, 1.0);
             dataset.push((arr2(&[[x], [y]]), arr2(&[[r], [g], [b]])));
+            y += step;
+        }
+        x += step;
+    }
+    dataset
+}
+
+pub fn gen_color_dataset(low: f64, high: f64, step: f64) -> Vec<(Array2<f64>, Array2<f64>)> {
+    let mut dataset = Vec::new();
+
+    let mut x = low;
+    while x <= high {
+        let mut y = low;
+        while y <= high {
+            dataset.push((
+                arr2(&[[x], [y]]),
+                arr2(&[
+                    [(x.powi(2)).min(255.0)],
+                    [y.powi(2).min(255.0)],
+                    [(x + y).powi(2).min(255.0)],
+                ]),
+            ));
             y += step;
         }
         x += step;
