@@ -1,4 +1,4 @@
-use std::{f64, fs, path::Path};
+use std::{f64, path::Path};
 
 use anyhow::{Result, anyhow};
 use ndarray::{Axis, array};
@@ -233,11 +233,11 @@ pub fn visualize_neural_network(nn: &NeuralNetwork, filename: &str) -> Result<()
     let bottom_pad = 60i32;
 
     let usable_w = (width as i32) - left_pad - right_pad;
-    let usable_h = (height as i32) - top_pad - bottom_pad;
+    let _usable_h = (height as i32) - top_pad - bottom_pad;
 
     let layer_count = nn.layers.len();
 
-    let x_step = if layer_count > 1 {
+    let _x_step = if layer_count > 1 {
         usable_w as f64 / (layer_count as f64 - 1.0)
     } else {
         0.0

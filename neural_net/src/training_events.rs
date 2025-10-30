@@ -1,6 +1,6 @@
 #[cfg(feature = "loss")]
 use std::time::Duration;
-use std::{fs, ops::Add, path::Path, time::Instant};
+use std::{fs, path::Path, time::Instant};
 
 use log::warn;
 

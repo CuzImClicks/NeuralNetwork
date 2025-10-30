@@ -1,16 +1,16 @@
 use std::fs;
 use std::path::Path;
 
-use crate::visualization::{plot_heatmap, plot_line, plot_rgb};
+use crate::visualization::{plot_heatmap, plot_line};
 use anyhow::Result;
 use log::LevelFilter;
-use neural_net::datasets::{gen_heart_dataset, gen_rainbow_dataset};
+use neural_net::datasets::gen_heart_dataset;
 use neural_net::layers::{
-    default_leaky_relu, default_linear, default_relu, default_sigmoid, default_tanh,
+    default_relu, default_sigmoid,
 };
 use neural_net::loss::LossFunction;
 use neural_net::neural_net::NeuralNetwork;
-use neural_net::saving_and_loading::{Format, load_from_file, save_to_file};
+use neural_net::saving_and_loading::{Format, load_from_file};
 use neural_net::training_events::{Callbacks, CheckpointStrategy, Logger, LossCollector};
 use plotters::style::WHITE;
 use plotters::style::full_palette::RED;
