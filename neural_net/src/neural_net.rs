@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, path::Path, time::Instant};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>,
 }
@@ -75,7 +75,7 @@ impl NeuralNetwork {
     ) {
         let training_start = Instant::now();
         callbacks.on_event(
-            &self,
+            self,
             TrainingEvent::TrainingBegin {
                 start_time: training_start,
                 total_epochs: epochs,
@@ -154,7 +154,7 @@ impl NeuralNetwork {
             {
                 let loss = self.validate(&views, &loss_function);
                 callbacks.on_event(
-                    &self,
+                    self,
                     TrainingEvent::EpochEnd {
                         stats: EpochStats {
                             epoch,
@@ -168,7 +168,7 @@ impl NeuralNetwork {
         }
 
         callbacks.on_event(
-            &self,
+            self,
             TrainingEvent::TrainingEnd {
                 end_time: training_start.elapsed(),
                 total_epochs: epochs,

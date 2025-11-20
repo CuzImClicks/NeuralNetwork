@@ -1,5 +1,6 @@
 #[deny(clippy::nursery)]
 pub mod activation;
+pub mod checkpoints;
 pub mod datasets;
 pub mod layers;
 pub mod loss;

@@ -1,17 +1,16 @@
-use std::fs;
 use std::path::Path;
+use std::{f64, fs};
 
 use crate::visualization::{plot_heatmap, plot_line};
 use anyhow::Result;
 use log::LevelFilter;
+use neural_net::checkpoints::CheckpointStrategy;
 use neural_net::datasets::gen_heart_dataset;
-use neural_net::layers::{
-    default_relu, default_sigmoid,
-};
+use neural_net::layers::{default_relu, default_sigmoid};
 use neural_net::loss::LossFunction;
 use neural_net::neural_net::NeuralNetwork;
 use neural_net::saving_and_loading::{Format, load_from_file};
-use neural_net::training_events::{Callbacks, CheckpointStrategy, Logger, LossCollector};
+use neural_net::training_events::{Callbacks, Logger, LossCollector};
 use plotters::style::WHITE;
 use plotters::style::full_palette::RED;
 use rand::rng;
@@ -51,11 +50,14 @@ fn main() -> Result<()> {
     let dataset = gen_heart_dataset(-16.0, 16.0, 0.1); //gen_color_dataset(-15.0, 15.0, 0.1); //gen_rainbow_dataset(-20.0, 20.0, 0.1); //gen_heart_dataset(-16.0, 16.0, 0.1); // datasets::gen_circle_dataset(0.0, 5.0, 0.01); //
     let mut loss_collector = LossCollector::new(num_epochs);
     let mut logger = Logger {};
-    let mut checkpoint_strategy = CheckpointStrategy::Percentage {
-        percentage: 0.1,
-        total_epochs: num_epochs,
+    let mut checkpoint_strategy = CheckpointStrategy::LowestLoss {
         folder: "./checkpoints/",
+        save_on_training_end: false,
+        neural_network: None,
+        lowest_loss: &mut f64::INFINITY,
+        epoch: &mut 0,
     };
+
     n.train(
         dataset,
         num_epochs,

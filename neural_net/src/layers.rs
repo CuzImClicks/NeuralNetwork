@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::activation::Activation;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Layer {
     pub weights: Array2<f64>,
     pub biases: Array2<f64>,

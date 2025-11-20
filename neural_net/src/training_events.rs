@@ -1,10 +1,7 @@
+use crate::neural_net::NeuralNetwork;
 #[cfg(feature = "loss")]
 use std::time::Duration;
-use std::{fs, path::Path, time::Instant};
-
-use log::warn;
-
-use crate::{neural_net::NeuralNetwork, saving_and_loading::Format};
+use std::time::Instant;
 
 #[derive(Debug, Copy, Clone)]
 pub struct EpochStats {
@@ -98,101 +95,13 @@ impl LossCollector {
 
 impl TrainingCallback for LossCollector {
     fn on_event(&mut self, _nn: &NeuralNetwork, event: TrainingEvent) {
-        match event {
-            TrainingEvent::EpochEnd { stats } => {
-                self.data.push((stats.epoch as f64, stats.loss));
-            }
-            _ => {}
+        if let TrainingEvent::EpochEnd { stats } = event {
+            self.data.push((stats.epoch as f64, stats.loss));
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum CheckpointStrategy<T: AsRef<Path>> {
-    Percentage {
-        percentage: f64,
-        total_epochs: usize,
-        folder: T,
-    },
-    TimePassed {
-        wait_time: Duration,
-        start_time: Instant,
-        last_save: Instant,
-        folder: T,
-    },
-}
-
-impl<T: AsRef<Path>> TrainingCallback for CheckpointStrategy<T> {
-    fn on_event(&mut self, nn: &NeuralNetwork, event: TrainingEvent) {
-        match self {
-            CheckpointStrategy::Percentage {
-                percentage,
-                total_epochs,
-                folder,
-            } => match event {
-                TrainingEvent::EpochEnd { stats } => {
-                    let a = ((*total_epochs as f64) * *percentage).round();
-                    let completion_percentage =
-                        ((stats.epoch as f64 / *total_epochs as f64) * 100.0).round();
-                    if stats.epoch as f64 % a == 0.0 {
-                        nn.save_checkpoint(
-                            folder
-                                .as_ref()
-                                .join(&format!("checkpoint_{}.json", completion_percentage)),
-                            Format::Json,
-                        )
-                        .unwrap();
-                        warn!(
-                            "Saved percentage based checkpoint at {}% of finished training.",
-                            completion_percentage
-                        )
-                    }
-                }
-                TrainingEvent::TrainingBegin {
-                    start_time: _start_time,
-                    total_epochs: _total_epochs,
-                } => {
-                    if !folder.as_ref().exists() {
-                        fs::create_dir(folder).unwrap()
-                    }
-                }
-                _ => {}
-            },
-            CheckpointStrategy::TimePassed {
-                wait_time,
-                start_time,
-                last_save,
-                folder,
-            } => match event {
-                TrainingEvent::EpochEnd { stats } => {
-                    let duration_since = last_save.duration_since(*start_time);
-                    if duration_since >= *wait_time {
-                        *last_save = Instant::now();
-
-                        nn.save_checkpoint(
-                            folder
-                                .as_ref()
-                                .join(&format!("checkpoint_{}.json", stats.epoch)),
-                            Format::Json,
-                        )
-                        .unwrap();
-                        warn!("Saved time based checkpoint after {:?}", duration_since)
-                    }
-                }
-                TrainingEvent::TrainingBegin {
-                    start_time: _start_time,
-                    total_epochs: _total_epochs,
-                } => {
-                    if !folder.as_ref().exists() {
-                        fs::create_dir(folder).unwrap()
-                    }
-                }
-                _ => {}
-            },
-        }
-    }
-}
-
+#[derive(Default)]
 pub struct Callbacks<'a>(Vec<&'a mut dyn TrainingCallback>);
 
 impl<'a> Callbacks<'a> {
@@ -202,13 +111,7 @@ impl<'a> Callbacks<'a> {
 
     pub fn on_event(&mut self, nn: &NeuralNetwork, event: TrainingEvent) {
         if !self.0.is_empty() {
-            self.0.iter_mut().for_each(|it| it.on_event(&nn, event));
+            self.0.iter_mut().for_each(|it| it.on_event(nn, event));
         }
-    }
-}
-
-impl<'a> Default for Callbacks<'a> {
-    fn default() -> Self {
-        Self(vec![])
     }
 }
