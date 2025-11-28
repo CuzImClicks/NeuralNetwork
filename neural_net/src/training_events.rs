@@ -1,5 +1,7 @@
 use ndarray::Array2;
 
+#[cfg(feature = "loss")]
+use crate::datasets::Float;
 use crate::neural_net::NeuralNetwork;
 #[cfg(feature = "loss")]
 use std::time::Duration;
@@ -9,7 +11,7 @@ use std::time::Instant;
 pub struct EpochStats {
     pub epoch: usize,
     #[cfg(feature = "loss")]
-    pub loss: f64,
+    pub loss: Float,
     #[cfg(feature = "loss")]
     pub loss_elapsed: Duration,
     pub backpropagation_elapsed: Duration,
@@ -32,8 +34,8 @@ pub enum TrainingEvent {
     TrainingEnd {
         end_time: Duration,
         total_epochs: usize,
-        training_dataset: Vec<(Array2<f64>, Array2<f64>)>,
-        validation_dataset: Vec<(Array2<f64>, Array2<f64>)>,
+        training_dataset: Vec<(Array2<Float>, Array2<Float>)>,
+        validation_dataset: Vec<(Array2<Float>, Array2<Float>)>,
     },
 }
 
@@ -92,7 +94,7 @@ impl TrainingCallback for Logger {
 }
 
 pub struct LossCollector {
-    pub data: Vec<(f64, f64)>,
+    pub data: Vec<(Float, Float)>,
 }
 
 impl LossCollector {
@@ -106,7 +108,7 @@ impl LossCollector {
 impl TrainingCallback for LossCollector {
     fn on_event(&mut self, _nn: &NeuralNetwork, event: &TrainingEvent) {
         if let TrainingEvent::EpochEnd { stats } = event {
-            self.data.push((stats.epoch as f64, stats.loss));
+            self.data.push((stats.epoch as Float, stats.loss));
         }
     }
 }

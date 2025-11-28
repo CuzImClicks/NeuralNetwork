@@ -5,7 +5,7 @@ use crate::visualization::{plot_heatmap, plot_line, visualize_neural_network, we
 use anyhow::Result;
 use log::LevelFilter;
 use neural_net::checkpoints::CheckpointStrategy;
-use neural_net::datasets::gen_heart_dataset;
+use neural_net::datasets::{Float, gen_heart_dataset};
 use neural_net::layers::{default_leaky_relu, default_relu, default_sigmoid, default_tanh};
 use neural_net::loss::LossFunction;
 use neural_net::neural_net::NeuralNetwork;
@@ -117,7 +117,7 @@ fn main() -> Result<()> {
         "Loss",
         "./heart2/loss.png",
         (1000, 1000),
-        (0.0, num_epochs as f64),
+        (0.0, num_epochs as Float),
         (0.0, 1.0),
     )?;
 

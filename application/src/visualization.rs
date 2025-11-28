@@ -2,12 +2,12 @@ use std::{f64, path::Path, vec};
 
 use anyhow::{Result, anyhow};
 use ndarray::{Axis, ViewRepr, array};
-use neural_net::neural_net::NeuralNetwork;
+use neural_net::{datasets::Float, neural_net::NeuralNetwork};
 use plotters::{element::BackendCoordOnly, prelude::*};
 
 /// Linear interpolation between two RGBColor endpoints.
-fn interpolate_color(low: &RGBColor, high: &RGBColor, t: f64) -> RGBColor {
-    let clamp = |v: f64| {
+fn interpolate_color(low: &RGBColor, high: &RGBColor, t: Float) -> RGBColor {
+    let clamp = |v: Float| {
         if v < 0.0 {
             0
         } else if v > 255.0 {
@@ -16,16 +16,16 @@ fn interpolate_color(low: &RGBColor, high: &RGBColor, t: f64) -> RGBColor {
             v as u8
         }
     };
-    let r = clamp((1.0 - t) * (low.0 as f64) + t * (high.0 as f64));
-    let g = clamp((1.0 - t) * (low.1 as f64) + t * (high.1 as f64));
-    let b = clamp((1.0 - t) * (low.2 as f64) + t * (high.2 as f64));
+    let r = clamp((1.0 - t) * (low.0 as Float) + t * (high.0 as Float));
+    let g = clamp((1.0 - t) * (low.1 as Float) + t * (high.1 as Float));
+    let b = clamp((1.0 - t) * (low.2 as Float) + t * (high.2 as Float));
     RGBColor(r, g, b)
 }
 
 pub fn plot_heatmap<P: AsRef<Path>>(
     nn: &NeuralNetwork,
-    x_range: (f64, f64),
-    y_range: (f64, f64),
+    x_range: (Float, Float),
+    y_range: (Float, Float),
     resolution: (usize, usize),
     file: P,
     low_color: RGBColor,
@@ -40,14 +40,14 @@ pub fn plot_heatmap<P: AsRef<Path>>(
         "Resolution must be at least 2 in each axis"
     );
 
-    let mut values = vec![0.0f64; nx * ny];
-    let mut min_v = f64::INFINITY;
-    let mut max_v = f64::NEG_INFINITY;
+    let mut values: Vec<Float> = vec![0.0; nx * ny];
+    let mut min_v = Float::INFINITY;
+    let mut max_v = Float::NEG_INFINITY;
 
     for ix in 0..nx {
-        let x = xmin + (xmax - xmin) * (ix as f64) / ((nx - 1) as f64);
+        let x = xmin + (xmax - xmin) * (ix as Float) / ((nx - 1) as Float);
         for iy in 0..ny {
-            let y = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
+            let y = ymin + (ymax - ymin) * (iy as Float) / ((ny - 1) as Float);
             let input = array![[x], [y]];
             let output = nn.feedforward(input.view());
             let value = output[[0, 0]];
@@ -61,7 +61,7 @@ pub fn plot_heatmap<P: AsRef<Path>>(
         }
     }
 
-    let range = (max_v - min_v).max(std::f64::EPSILON);
+    let range = (max_v - min_v).max(Float::EPSILON);
 
     let image_size = (1000, 800);
     let root = BitMapBackend::new(&file, image_size).into_drawing_area();
@@ -77,13 +77,13 @@ pub fn plot_heatmap<P: AsRef<Path>>(
         .build_cartesian_2d(xmin..xmax, ymin..ymax)?;
     chart.configure_mesh().draw()?;
 
-    let dx = (xmax - xmin) / ((nx - 1) as f64);
-    let dy = (ymax - ymin) / ((ny - 1) as f64);
+    let dx = (xmax - xmin) / ((nx - 1) as Float);
+    let dy = (ymax - ymin) / ((ny - 1) as Float);
 
     for ix in 0..nx {
-        let x0 = xmin + (xmax - xmin) * (ix as f64) / ((nx - 1) as f64);
+        let x0 = xmin + (xmax - xmin) * (ix as Float) / ((nx - 1) as Float);
         for iy in 0..ny {
-            let y0 = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
+            let y0 = ymin + (ymax - ymin) * (iy as Float) / ((ny - 1) as Float);
             let v = values[ix + iy * nx];
             let t = (v - min_v) / range;
             let color = interpolate_color(&low_color, &high_color, t);
@@ -99,8 +99,8 @@ pub fn plot_heatmap<P: AsRef<Path>>(
 
 pub fn plot_rgb(
     nn: &NeuralNetwork,
-    x_range: (f64, f64),
-    y_range: (f64, f64),
+    x_range: (Float, Float),
+    y_range: (Float, Float),
     resolution: (usize, usize),
     filename: &str,
 ) -> Result<()> {
@@ -113,12 +113,12 @@ pub fn plot_rgb(
         "Resolution must be at least 2 in each axis"
     );
 
-    let mut values = vec![[0.0_f64; 3]; nx * ny];
+    let mut values: Vec<[Float; 3]> = vec![[0.0; 3]; nx * ny];
 
     for ix in 0..nx {
-        let x = xmin + (xmax - xmin) * (ix as f64) / ((nx - 1) as f64);
+        let x = xmin + (xmax - xmin) * (ix as Float) / ((nx - 1) as Float);
         for iy in 0..ny {
-            let y = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
+            let y = ymin + (ymax - ymin) * (iy as Float) / ((ny - 1) as Float);
             let input = array![[x], [y]];
             let output = nn.feedforward(input.view());
             let value = output.axis_iter(Axis(1)).collect::<Vec<_>>();
@@ -144,13 +144,13 @@ pub fn plot_rgb(
         .build_cartesian_2d(xmin..xmax, ymin..ymax)?;
     chart.configure_mesh().draw()?;
 
-    let dx = (xmax - xmin) / ((nx - 1) as f64);
-    let dy = (ymax - ymin) / ((ny - 1) as f64);
+    let dx = (xmax - xmin) / ((nx - 1) as Float);
+    let dy = (ymax - ymin) / ((ny - 1) as Float);
 
     for ix in 0..nx {
-        let x0 = xmin + (xmax - xmin) * (ix as f64) / ((nx - 1) as f64);
+        let x0 = xmin + (xmax - xmin) * (ix as Float) / ((nx - 1) as Float);
         for iy in 0..ny {
-            let y0 = ymin + (ymax - ymin) * (iy as f64) / ((ny - 1) as f64);
+            let y0 = ymin + (ymax - ymin) * (iy as Float) / ((ny - 1) as Float);
             let v = values[ix + iy * nx];
 
             let r = (v[0] * 255.0).round().clamp(0.0, 255.0) as u8;
@@ -168,12 +168,12 @@ pub fn plot_rgb(
 }
 
 pub fn plot_line(
-    data: Vec<(f64, f64)>,
+    data: Vec<(Float, Float)>,
     caption: &str,
     filename: &str,
     resolution: (u32, u32),
-    x_range: (f64, f64),
-    y_range: (f64, f64),
+    x_range: (Float, Float),
+    y_range: (Float, Float),
 ) -> Result<()> {
     let root = BitMapBackend::new(filename, resolution).into_drawing_area();
     root.fill(&WHITE)?;
@@ -225,7 +225,7 @@ pub fn plot_points<P: AsRef<Path>>(
     Ok(())
 }
 
-fn grayscale_between_bounds(low: f64, high: f64, value: f64) -> RGBColor {
+fn grayscale_between_bounds(low: Float, high: Float, value: Float) -> RGBColor {
     debug_assert!(value >= low);
     let c = 255.0 * ((value - low) / (high - low)).powf(0.7).clamp(0.1, 0.9);
     RGBColor(c as u8, c as u8, c as u8)
@@ -317,7 +317,7 @@ pub fn visualize_neural_network<P: AsRef<Path>>(
             .biases
             .axis_iter(Axis(0))
             .map(|it| it[0])
-            .collect::<Vec<f64>>();
+            .collect::<Vec<Float>>();
         for (j, neuron) in &mut layer.weights.axis_iter(Axis(0)).enumerate() {
             let bias = biases[j];
             let circle = &Circle::new(
@@ -383,7 +383,7 @@ pub fn weight_histogram<P: AsRef<Path>>(nn: &NeuralNetwork, path: P) -> Result<(
     let mut amounts = [0; 20];
     flattened.iter().for_each(|it| {
         (0..20).for_each(|i| {
-            if min_weight + i as f64 * x_step <= *it && min_weight + (i + 1) as f64 * x_step > *it {
+            if min_weight + i as Float * x_step <= *it && min_weight + (i + 1) as Float * x_step > *it {
                 amounts[i] += 1;
             }
         })
@@ -402,8 +402,8 @@ pub fn weight_histogram<P: AsRef<Path>>(nn: &NeuralNetwork, path: P) -> Result<(
     chart.configure_mesh().draw()?;
 
     chart.draw_series(amounts.iter().enumerate().map(|(i, v)| {
-        let x0 = min_weight + i as f64 * x_step;
-        let x1 = (min_weight + (i + 1) as f64 * x_step).min(max_weight);
+        let x0 = min_weight + i as Float * x_step;
+        let x1 = (min_weight + (i + 1) as Float * x_step).min(max_weight);
         let y0 = 0;
         let y1 = v;
         let bar = Rectangle::new([(x0, y0), (x1, *y1)], RED.filled());

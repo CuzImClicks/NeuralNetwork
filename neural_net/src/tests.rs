@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        datasets::gen_xor_dataset,
+        datasets::{Float, gen_xor_dataset},
         layers::{default_leaky_relu, default_sigmoid},
         loss::LossFunction,
         neural_net::NeuralNetwork,
@@ -11,14 +11,14 @@ mod tests {
     use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
 
     /// Exhaustive 3-bit parity dataset: input shape (3,1), output shape (1,1)
-    fn gen_parity3_dataset() -> Vec<(Array2<f64>, Array2<f64>)> {
+    fn gen_parity3_dataset() -> Vec<(Array2<Float>, Array2<Float>)> {
         let mut data = Vec::with_capacity(8);
         for i in 0..8 {
-            let b0 = ((i >> 0) & 1) as f64;
-            let b1 = ((i >> 1) & 1) as f64;
-            let b2 = ((i >> 2) & 1) as f64;
+            let b0 = ((i >> 0) & 1) as Float;
+            let b1 = ((i >> 1) & 1) as Float;
+            let b2 = ((i >> 2) & 1) as Float;
             let input = array![[b0], [b1], [b2]]; // shape (3,1)
-            let parity = ((b0 as i32 + b1 as i32 + b2 as i32) % 2) as f64;
+            let parity = ((b0 as i32 + b1 as i32 + b2 as i32) % 2) as Float;
             let truth = array![[parity]]; // shape (1,1)
             data.push((input, truth));
         }
@@ -37,7 +37,7 @@ mod tests {
 
         let dataset = gen_parity3_dataset();
 
-        let train_views: Vec<(ndarray::ArrayView2<f64>, ndarray::ArrayView2<f64>)> =
+        let train_views: Vec<(ndarray::ArrayView2<Float>, ndarray::ArrayView2<Float>)> =
             dataset.iter().map(|(i, o)| (i.view(), o.view())).collect();
 
         nn.train(
@@ -93,7 +93,7 @@ mod tests {
             &data
                 .iter()
                 .map(|(i, o)| (i.view(), o.view()))
-                .collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>(),
+                .collect::<Vec<(ArrayView2<Float>, ArrayView2<Float>)>>(),
             &crate::loss::LossFunction::BinaryCrossEntropy,
         );
         assert!(loss < 0.01, "Expected near-zero training loss, got {loss}");

@@ -1,3 +1,7 @@
 /target
 *.png
 /checkpoints
+.idea
+tmp/
+*.py
+*.json

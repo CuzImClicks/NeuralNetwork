@@ -7,15 +7,13 @@ use std::{
 use log::warn;
 
 use crate::{
-    neural_net::NeuralNetwork,
-    saving_and_loading::Format,
-    training_events::{TrainingCallback, TrainingEvent},
+    datasets::Float, neural_net::NeuralNetwork, saving_and_loading::Format, training_events::{TrainingCallback, TrainingEvent}
 };
 
 #[derive(Debug)]
 pub enum CheckpointStrategy<'a, T: AsRef<Path>> {
     Percentage {
-        percentage: f64,
+        percentage: Float,
         total_epochs: usize,
         folder: T,
     },
@@ -29,7 +27,7 @@ pub enum CheckpointStrategy<'a, T: AsRef<Path>> {
         folder: T,
         save_on_training_end: bool,
         neural_network: Option<NeuralNetwork>,
-        lowest_loss: &'a mut f64,
+        lowest_loss: &'a mut Float,
         epoch: &'a mut usize,
     },
 }
@@ -43,10 +41,10 @@ impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
                 folder,
             } => match event {
                 TrainingEvent::EpochEnd { stats } => {
-                    let a = ((*total_epochs as f64) * *percentage).round();
+                    let a = ((*total_epochs as Float) * *percentage).round();
                     let completion_percentage =
-                        ((stats.epoch as f64 / *total_epochs as f64) * 100.0).round();
-                    if stats.epoch as f64 % a == 0.0 {
+                        ((stats.epoch as Float / *total_epochs as Float) * 100.0).round();
+                    if stats.epoch as Float % a == 0.0 {
                         nn.save_checkpoint(
                             folder
                                 .as_ref()

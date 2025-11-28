@@ -1,9 +1,5 @@
 use crate::{
-    layers::{GpuLayer, Layer},
-    loss::LossFunction,
-    metadata::Metadata,
-    saving_and_loading::{Format, save_to_file},
-    training_events::{Callbacks, EpochStats, TrainingEvent},
+    datasets::Float, layers::{GpuLayer, Layer}, loss::LossFunction, metadata::Metadata, saving_and_loading::{Format, save_to_file}, training_events::{Callbacks, EpochStats, TrainingEvent}
 };
 use anyhow::{Context, Result};
 use cubecl::prelude::*;
@@ -22,12 +18,12 @@ pub struct NeuralNetwork {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TrainingData {
-    nabla_w: Vec<Array2<f64>>,
-    nabla_b: Vec<Array2<f64>>,
-    delta_nabla_w: Vec<Array2<f64>>,
-    delta_nabla_b: Vec<Array2<f64>>,
-    activations: Vec<Array2<f64>>,
-    pre_activations: Vec<Array2<f64>>,
+    nabla_w: Vec<Array2<Float>>,
+    nabla_b: Vec<Array2<Float>>,
+    delta_nabla_w: Vec<Array2<Float>>,
+    delta_nabla_b: Vec<Array2<Float>>,
+    activations: Vec<Array2<Float>>,
+    pre_activations: Vec<Array2<Float>>,
 }
 
 impl NeuralNetwork {
@@ -42,7 +38,7 @@ impl NeuralNetwork {
         self.metadata = Some(metadata)
     }
 
-    pub fn feedforward(&self, inputs: ArrayView2<f64>) -> Array2<f64> {
+    pub fn feedforward(&self, inputs: ArrayView2<Float>) -> Array2<Float> {
         let mut result = inputs.to_owned();
         for layer in self.layers.iter() {
             result = layer.weights.dot(&result);
@@ -54,32 +50,32 @@ impl NeuralNetwork {
 
     pub fn validate(
         &self,
-        data: &[(ArrayView2<f64>, ArrayView2<f64>)],
+        data: &[(ArrayView2<Float>, ArrayView2<Float>)],
         loss: &LossFunction,
-    ) -> f64 {
+    ) -> Float {
         let (sum, count) = data
             .par_iter()
             .map(|(input, truth)| {
                 let output = self.feedforward(*input);
                 loss.apply(output.view(), *truth)
             })
-            .fold(|| (0.0f64, 0usize), |(acc, cnt), l| (acc + l, cnt + 1))
-            .reduce(|| (0.0f64, 0usize), |(a1, c1), (a2, c2)| (a1 + a2, c1 + c2));
+            .fold(|| (0.0 as Float, 0usize), |(acc, cnt), l| (acc + l, cnt + 1))
+            .reduce(|| (0.0 as Float, 0usize), |(a1, c1), (a2, c2)| (a1 + a2, c1 + c2));
         if count == 0 {
             0.0
         } else {
-            sum / (count as f64)
+            sum / (count as Float)
         }
     }
 
     pub fn train(
         &mut self,
-        raw_training_data: Vec<(Array2<f64>, Array2<f64>)>,
+        raw_training_data: Vec<(Array2<Float>, Array2<Float>)>,
         epochs: usize,
         batches_per_epoch: usize,
         batch_size: usize,
-        learning_rate: f64,
-        lambda: f64,
+        learning_rate: Float,
+        lambda: Float,
         rng: &mut impl Rng,
         loss_function: LossFunction,
         mut callbacks: Callbacks,
@@ -93,17 +89,17 @@ impl NeuralNetwork {
             },
         );
 
-        let weight_size: Vec<Array2<f64>> = self
+        let weight_size: Vec<Array2<Float>> = self
             .layers
             .iter()
             .map(|w| Array2::zeros(w.weights.dim()))
             .collect();
-        let bias_size: Vec<Array2<f64>> = self
+        let bias_size: Vec<Array2<Float>> = self
             .layers
             .iter()
             .map(|w| Array2::zeros(w.biases.dim()))
             .collect();
-        let mut activations_shape: Vec<Array2<f64>> = weight_size
+        let mut activations_shape: Vec<Array2<Float>> = weight_size
             .iter()
             .map(|w| Array2::zeros((w.dim().1, 1)))
             .collect();
@@ -127,14 +123,14 @@ impl NeuralNetwork {
 
         #[cfg(feature = "loss")]
         let validation_pairs = {
-            let val_size = ((data.len() as f64 * 0.1).ceil() as usize).max(1);
+            let val_size = ((data.len() as Float * 0.1).ceil() as usize).max(1);
             data.drain(..val_size).collect::<Vec<_>>()
         };
         #[cfg(feature = "loss")]
         let views = validation_pairs
             .iter()
             .map(|(i, o)| (i.view(), o.view()))
-            .collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>();
+            .collect::<Vec<(ArrayView2<Float>, ArrayView2<Float>)>>();
 
         let mut indices: Vec<usize> = (0..data.len()).collect::<Vec<usize>>();
 
@@ -160,6 +156,7 @@ impl NeuralNetwork {
                     stats: EpochStats {
                         epoch,
                         duration: elapsed,
+                        .._
                     },
                 })
             }
@@ -196,9 +193,9 @@ impl NeuralNetwork {
 
     fn update_weights_biases(
         &mut self,
-        batch: &[&(Array2<f64>, Array2<f64>)],
-        learning_rate: f64,
-        lambda: f64,
+        batch: &[&(Array2<Float>, Array2<Float>)],
+        learning_rate: Float,
+        lambda: Float,
         training_data: &mut TrainingData,
         loss: &LossFunction,
     ) {
@@ -232,7 +229,7 @@ impl NeuralNetwork {
             reset_matrix(delta_nabla_b);
         }
 
-        let batch_size_f = batch.len() as f64;
+        let batch_size_f = batch.len() as Float;
         for (layer, grad_w) in self.layers.iter_mut().zip(nabla_w.iter()) {
             if lambda != 0.0 {
                 // decouple decay: w := w * (1 - lr * lambda / batch_size)
@@ -255,12 +252,12 @@ impl NeuralNetwork {
     #[allow(non_snake_case)]
     fn backpropagation(
         &mut self,
-        input: &Array2<f64>,
-        truth: &Array2<f64>,
-        delta_nabla_w: &mut [Array2<f64>],
-        delta_nabla_b: &mut [Array2<f64>],
-        activations: &mut [Array2<f64>],
-        pre_activations: &mut [Array2<f64>],
+        input: &Array2<Float>,
+        truth: &Array2<Float>,
+        delta_nabla_w: &mut [Array2<Float>],
+        delta_nabla_b: &mut [Array2<Float>],
+        activations: &mut [Array2<Float>],
+        pre_activations: &mut [Array2<Float>],
         loss: &LossFunction,
     ) {
         let num_layers = self.layers.len();
@@ -360,7 +357,7 @@ impl NeuralNetwork {
         let outputs_tensor =
             client.create_tensor_from_slice(output_flat_bytes, &shape, mem::size_of::<f32>());
 
-        let gpu_layers = self.get_weights_as_tensors::<R>(&device);
+        let gpu_layers = self.get_weights_as_tensors::<R>(&device)?;
 
         Ok(())
     }

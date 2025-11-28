@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::datasets::Float;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Activation {
     Sigmoid,
@@ -10,7 +12,7 @@ pub enum Activation {
 }
 
 impl Activation {
-    pub fn apply(&self, x: f64) -> f64 {
+    pub fn apply(&self, x: Float) -> Float {
         match self {
             Self::Sigmoid => 1.0 / (1.0 + (-x).exp()),
             Self::ReLU => {
@@ -32,7 +34,7 @@ impl Activation {
         }
     }
 
-    pub fn derivative(&self, x: f64) -> f64 {
+    pub fn derivative(&self, x: Float) -> Float {
         match self {
             Self::Sigmoid => {
                 let s = 1.0 / (1.0 + (-x).exp());
