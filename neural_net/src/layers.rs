@@ -1,3 +1,4 @@
+use cubecl::server::Allocation;
 use ndarray::Array2;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -8,6 +9,13 @@ use crate::activation::Activation;
 pub struct Layer {
     pub weights: Array2<f64>,
     pub biases: Array2<f64>,
+    pub activation: Activation,
+}
+
+#[derive(Debug)]
+pub struct GpuLayer {
+    pub weights: Allocation,
+    pub biases: Allocation,
     pub activation: Activation,
 }
 

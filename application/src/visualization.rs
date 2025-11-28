@@ -1,9 +1,9 @@
-use std::{f64, path::Path};
+use std::{f64, path::Path, vec};
 
 use anyhow::{Result, anyhow};
-use ndarray::{Axis, array};
+use ndarray::{Axis, ViewRepr, array};
 use neural_net::neural_net::NeuralNetwork;
-use plotters::prelude::*;
+use plotters::{element::BackendCoordOnly, prelude::*};
 
 /// Linear interpolation between two RGBColor endpoints.
 fn interpolate_color(low: &RGBColor, high: &RGBColor, t: f64) -> RGBColor {
@@ -196,8 +196,47 @@ pub fn plot_line(
     Ok(())
 }
 
-pub fn visualize_neural_network(nn: &NeuralNetwork, filename: &str) -> Result<()> {
-    let root = BitMapBackend::new(filename, (1200, 700)).into_drawing_area();
+pub fn plot_points<P: AsRef<Path>>(
+    data: Vec<(f64, f64)>,
+    caption: &str,
+    path: P,
+    resolution: (u32, u32),
+    x_range: (f64, f64),
+    y_range: (f64, f64),
+) -> Result<()> {
+    let root = BitMapBackend::new(path.as_ref(), resolution).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let (x_min, x_max) = x_range;
+    let (y_min, y_max) = y_range;
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(caption, ("sans-serif", 24))
+        .margin(10)
+        .x_label_area_size(35)
+        .y_label_area_size(35)
+        .build_cartesian_2d(x_min..x_max, y_min..y_max)?;
+
+    chart.configure_mesh().draw()?;
+
+    //chart.draw_series(PointSeries::new(data, 2.0, &BLUE))?;
+
+    root.present()?;
+    Ok(())
+}
+
+fn grayscale_between_bounds(low: f64, high: f64, value: f64) -> RGBColor {
+    debug_assert!(value >= low);
+    let c = 255.0 * ((value - low) / (high - low)).powf(0.7).clamp(0.1, 0.9);
+    RGBColor(c as u8, c as u8, c as u8)
+}
+
+pub fn visualize_neural_network<P: AsRef<Path>>(
+    nn: &NeuralNetwork,
+    path: P,
+    size: (u32, u32),
+) -> Result<()> {
+    let root = SVGBackend::new(path.as_ref(), size).into_drawing_area();
     root.fill(&WHITE)?;
 
     let mut max_weight = 0.0;
@@ -226,23 +265,150 @@ pub fn visualize_neural_network(nn: &NeuralNetwork, filename: &str) -> Result<()
     });
 
     let (width, height) = root.dim_in_pixel();
+    let width = width as i32;
+    let height = height as i32;
 
-    let left_pad = 100i32;
-    let right_pad = 100i32;
-    let top_pad = 60i32;
-    let bottom_pad = 60i32;
+    let left_pad: i32 = 100;
+    let right_pad: i32 = 100;
+    let top_pad: i32 = 60;
+    let bottom_pad: i32 = 60;
 
-    let usable_w = (width as i32) - left_pad - right_pad;
-    let _usable_h = (height as i32) - top_pad - bottom_pad;
+    let usable_w = width - left_pad - right_pad;
+    let usable_h = height - top_pad - bottom_pad;
+    let radius: i32 = 10;
 
     let layer_count = nn.layers.len();
 
-    let _x_step = if layer_count > 1 {
-        usable_w as f64 / (layer_count as f64 - 1.0)
+    let x_step = if layer_count > 1 {
+        usable_w / layer_count as i32
     } else {
-        0.0
+        0
     };
 
+    let padding = 20;
+    let y_step = 2 * radius + padding;
+
+    let input_layer = &nn.layers[0];
+
+    let mut x: i32 = left_pad + radius;
+    let mut y: i32 = top_pad
+        + radius
+        + (usable_h - radius - (input_layer.weights.len_of(Axis(1)) as i32 * y_step)) / 2;
+
+    // input layer
+    for _ in &mut input_layer.weights.axis_iter(Axis(1)) {
+        let circle = &Circle::new((x, y), radius, ShapeStyle::from(&BLACK).stroke_width(1));
+        root.draw(circle)?;
+
+        y += y_step;
+    }
+
+    x += x_step as i32;
+
+    let mut last_layer_y = top_pad
+        + radius
+        + (usable_h - radius - (input_layer.weights.len_of(Axis(1)) as i32 * y_step)) / 2;
+
+    for layer in &nn.layers {
+        y = top_pad
+            + radius
+            + (usable_h - radius - (layer.weights.len_of(Axis(0)) as i32 * y_step)) / 2;
+        let biases = layer
+            .biases
+            .axis_iter(Axis(0))
+            .map(|it| it[0])
+            .collect::<Vec<f64>>();
+        for (j, neuron) in &mut layer.weights.axis_iter(Axis(0)).enumerate() {
+            let bias = biases[j];
+            let circle = &Circle::new(
+                (x, y),
+                radius,
+                ShapeStyle::from(grayscale_between_bounds(min_bias, max_bias, bias))
+                    .stroke_width(1),
+            );
+            root.draw(circle)?;
+            for (i, weight) in neuron.iter().enumerate() {
+                root.draw(&PathElement::new(
+                    vec![
+                        (
+                            (x - x_step + radius) as i32,
+                            (last_layer_y + (y_step * i as i32)),
+                        ),
+                        ((x - radius) as i32, (y) as i32),
+                    ],
+                    ShapeStyle::from(grayscale_between_bounds(min_weight, max_weight, *weight)),
+                ))?;
+            }
+            y += y_step;
+        }
+        last_layer_y = top_pad
+            + radius
+            + (usable_h - radius - (layer.weights.len_of(Axis(0)) as i32 * y_step)) / 2;
+        x += x_step as i32;
+    }
+
     root.present()?;
+    Ok(())
+}
+
+pub fn weight_histogram<P: AsRef<Path>>(nn: &NeuralNetwork, path: P) -> Result<()> {
+    let root = BitMapBackend::new(path.as_ref(), (600, 400)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut max_weight = 0.0;
+    let mut min_weight = 0.0;
+
+    nn.layers.iter().for_each(|it| {
+        it.weights.for_each(|weight| {
+            if *weight < min_weight {
+                min_weight = *weight;
+            }
+            if *weight > max_weight {
+                max_weight = *weight;
+            }
+        });
+    });
+
+    let mut flattened: Vec<_> = nn
+        .layers
+        .iter()
+        .map(|it| it.weights.flatten())
+        .flatten()
+        .collect();
+
+    flattened.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let x_step = (max_weight - min_weight) * 0.05;
+
+    let mut amounts = [0; 20];
+    flattened.iter().for_each(|it| {
+        (0..20).for_each(|i| {
+            if min_weight + i as f64 * x_step <= *it && min_weight + (i + 1) as f64 * x_step > *it {
+                amounts[i] += 1;
+            }
+        })
+    });
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption("Weight Distribution", ("sans-serif", 24))
+        .margin(10)
+        .x_label_area_size(35)
+        .y_label_area_size(35)
+        .build_cartesian_2d(
+            min_weight..max_weight,
+            0_usize..(*amounts.iter().max().unwrap() + 1) as usize,
+        )?;
+
+    chart.configure_mesh().draw()?;
+
+    chart.draw_series(amounts.iter().enumerate().map(|(i, v)| {
+        let x0 = min_weight + i as f64 * x_step;
+        let x1 = (min_weight + (i + 1) as f64 * x_step).min(max_weight);
+        let y0 = 0;
+        let y1 = v;
+        let bar = Rectangle::new([(x0, y0), (x1, *y1)], RED.filled());
+        bar
+    }))?;
+
     Ok(())
 }

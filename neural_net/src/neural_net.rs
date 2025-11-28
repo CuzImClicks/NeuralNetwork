@@ -1,19 +1,23 @@
 use crate::{
-    layers::Layer,
+    layers::{GpuLayer, Layer},
     loss::LossFunction,
+    metadata::Metadata,
     saving_and_loading::{Format, save_to_file},
     training_events::{Callbacks, EpochStats, TrainingEvent},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
+use cubecl::prelude::*;
+use log::info;
 use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::Path, time::Instant};
+use std::{fmt::Display, mem, path::Path, process::exit, time::Instant};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>,
+    pub metadata: Option<Metadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -28,7 +32,14 @@ struct TrainingData {
 
 impl NeuralNetwork {
     pub fn new(layers: Vec<Layer>) -> Self {
-        NeuralNetwork { layers }
+        NeuralNetwork {
+            layers,
+            metadata: None,
+        }
+    }
+
+    pub fn with_metadata(&mut self, metadata: Metadata) {
+        self.metadata = Some(metadata)
     }
 
     pub fn feedforward(&self, inputs: ArrayView2<f64>) -> Array2<f64> {
@@ -111,13 +122,13 @@ impl NeuralNetwork {
             pre_activations: activations_shape,
         };
 
-        let mut batches = raw_training_data;
-        batches.shuffle(rng);
+        let mut data = raw_training_data;
+        data.shuffle(rng);
 
         #[cfg(feature = "loss")]
         let validation_pairs = {
-            let val_size = ((batches.len() as f64 * 0.1).ceil() as usize).clamp(1, 10);
-            batches.drain(..val_size).collect::<Vec<_>>()
+            let val_size = ((data.len() as f64 * 0.1).ceil() as usize).max(1);
+            data.drain(..val_size).collect::<Vec<_>>()
         };
         #[cfg(feature = "loss")]
         let views = validation_pairs
@@ -125,14 +136,16 @@ impl NeuralNetwork {
             .map(|(i, o)| (i.view(), o.view()))
             .collect::<Vec<(ArrayView2<f64>, ArrayView2<f64>)>>();
 
+        let mut indices: Vec<usize> = (0..data.len()).collect::<Vec<usize>>();
+
         for epoch in 0..epochs {
-            batches.shuffle(rng);
-
             let epoch_start = Instant::now();
+            indices.shuffle(rng);
+            let shuffle_elapsed = epoch_start.elapsed();
 
-            for batch in batches.chunks(batch_size).cycle().take(batches_per_epoch) {
+            for batch in indices.chunks(batch_size).take(batches_per_epoch) {
                 self.update_weights_biases(
-                    batch,
+                    &batch.iter().map(|it| &data[*it]).collect::<Vec<_>>(),
                     learning_rate,
                     lambda,
                     &mut training_data,
@@ -140,7 +153,7 @@ impl NeuralNetwork {
                 );
             }
 
-            let backpropagation_elapsed = epoch_start.elapsed();
+            let backpropagation_elapsed = epoch_start.elapsed() - shuffle_elapsed;
             #[cfg(not(feature = "loss"))]
             {
                 callbacks.on_event(TrainingEvent::EpochEnd {
@@ -159,8 +172,11 @@ impl NeuralNetwork {
                         stats: EpochStats {
                             epoch,
                             loss,
-                            loss_elapsed: epoch_start.elapsed() - backpropagation_elapsed,
-                            backpropagation_elapsed,
+                            loss_elapsed: epoch_start.elapsed()
+                                - (backpropagation_elapsed + shuffle_elapsed),
+                            backpropagation_elapsed: backpropagation_elapsed,
+                            shuffle_elapsed: shuffle_elapsed,
+                            total_elapsed: epoch_start.elapsed(),
                         },
                     },
                 );
@@ -172,13 +188,15 @@ impl NeuralNetwork {
             TrainingEvent::TrainingEnd {
                 end_time: training_start.elapsed(),
                 total_epochs: epochs,
+                training_dataset: data,
+                validation_dataset: validation_pairs,
             },
         );
     }
 
     fn update_weights_biases(
         &mut self,
-        batch: &[(Array2<f64>, Array2<f64>)],
+        batch: &[&(Array2<f64>, Array2<f64>)],
         learning_rate: f64,
         lambda: f64,
         training_data: &mut TrainingData,
@@ -289,6 +307,98 @@ impl NeuralNetwork {
 
     pub fn save_checkpoint(&self, path: impl AsRef<Path>, format: Format) -> Result<()> {
         save_to_file(path, self, format)
+    }
+
+    pub fn train_gpu<R: Runtime>(
+        &mut self,
+        raw_training_data: Vec<(Array2<f32>, Array2<f32>)>,
+        epochs: usize,
+        batches_per_epoch: usize,
+        batch_size: usize,
+        learning_rate: f32,
+        lambda: f32,
+        rng: &mut impl Rng,
+        loss_function: LossFunction,
+        mut callbacks: Callbacks,
+        device: &R::Device,
+    ) -> Result<()> {
+        let client = R::client(&device);
+
+        let mut data = raw_training_data;
+        data.shuffle(rng);
+
+        #[cfg(feature = "loss")]
+        let validation_pairs = {
+            let val_size = ((data.len() as f64 * 0.1).ceil() as usize).max(1);
+            data.drain(..val_size).collect::<Vec<_>>()
+        };
+        #[cfg(feature = "loss")]
+        let views = validation_pairs
+            .iter()
+            .map(|(i, o)| (i.view(), o.view()))
+            .collect::<Vec<(ArrayView2<f32>, ArrayView2<f32>)>>();
+
+        let first = data.first().context("Dataset is empty")?;
+        let (n, x_i, y_i) = (data.len(), first.0.dim().0, first.0.dim().1);
+        let (x_o, y_o) = (first.1.dim().0, first.1.dim().1);
+
+        let mut inputs_flat: Vec<f32> = Vec::with_capacity(n * x_i * y_i);
+        let mut outputs_flat: Vec<f32> = Vec::with_capacity(n * x_o * y_o);
+
+        data.iter().for_each(|(i, o)| {
+            inputs_flat.extend(i.iter().copied());
+            outputs_flat.extend(o.iter().copied());
+        });
+
+        let inputs_flat_bytes = f32::as_bytes(&inputs_flat);
+        let shape = [n, x_i, y_i];
+        let inputs_tensor =
+            client.create_tensor_from_slice(inputs_flat_bytes, &shape, mem::size_of::<f32>());
+
+        let output_flat_bytes = f32::as_bytes(&outputs_flat);
+        let shape = [n, x_o, y_o];
+        let outputs_tensor =
+            client.create_tensor_from_slice(output_flat_bytes, &shape, mem::size_of::<f32>());
+
+        let gpu_layers = self.get_weights_as_tensors::<R>(&device);
+
+        Ok(())
+    }
+
+    pub fn get_weights_as_tensors<R: Runtime>(&self, device: &R::Device) -> Result<Vec<GpuLayer>> {
+        let client = R::client(&device);
+        let mut gpu_layers: Vec<GpuLayer> = Vec::with_capacity(self.layers.len());
+
+        for layer in &self.layers {
+            let (rows, cols) = (layer.weights.dim().0, layer.weights.dim().1);
+            let mut weights_flat: Vec<f32> = Vec::with_capacity(rows * cols);
+            weights_flat.extend(layer.weights.iter().map(|w| *w as f32));
+            let weights_bytes = f32::as_bytes(&weights_flat);
+            let weights_bytes_shape = [rows, cols];
+            let weight_allocation = client.create_tensor_from_slice(
+                weights_bytes,
+                &weights_bytes_shape,
+                mem::size_of::<f32>(),
+            );
+
+            let (rows, cols) = (layer.biases.dim().0, layer.biases.dim().1);
+            let mut biases_flat: Vec<f32> = Vec::with_capacity(rows * cols);
+            biases_flat.extend(layer.biases.iter().map(|w| *w as f32));
+            let biases_bytes = f32::as_bytes(&biases_flat);
+            let biases_bytes_shape = [rows, cols];
+            let biases_allocation = client.create_tensor_from_slice(
+                biases_bytes,
+                &biases_bytes_shape,
+                mem::size_of::<f32>(),
+            );
+            gpu_layers.push(GpuLayer {
+                weights: weight_allocation,
+                biases: biases_allocation,
+                activation: layer.activation.clone(),
+            });
+        }
+
+        Ok(gpu_layers)
     }
 }
 

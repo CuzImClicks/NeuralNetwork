@@ -1,3 +1,5 @@
+use ndarray::Array2;
+
 use crate::neural_net::NeuralNetwork;
 #[cfg(feature = "loss")]
 use std::time::Duration;
@@ -11,9 +13,11 @@ pub struct EpochStats {
     #[cfg(feature = "loss")]
     pub loss_elapsed: Duration,
     pub backpropagation_elapsed: Duration,
+    pub shuffle_elapsed: Duration,
+    pub total_elapsed: Duration,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum TrainingEvent {
     TrainingBegin {
         start_time: Instant,
@@ -28,17 +32,19 @@ pub enum TrainingEvent {
     TrainingEnd {
         end_time: Duration,
         total_epochs: usize,
+        training_dataset: Vec<(Array2<f64>, Array2<f64>)>,
+        validation_dataset: Vec<(Array2<f64>, Array2<f64>)>,
     },
 }
 
 pub trait TrainingCallback {
-    fn on_event(&mut self, _nn: &NeuralNetwork, _event: TrainingEvent);
+    fn on_event(&mut self, _nn: &NeuralNetwork, _event: &TrainingEvent);
 }
 
 pub struct Logger;
 
 impl TrainingCallback for Logger {
-    fn on_event(&mut self, _nn: &NeuralNetwork, event: TrainingEvent) {
+    fn on_event(&mut self, _nn: &NeuralNetwork, event: &TrainingEvent) {
         match event {
             TrainingEvent::TrainingBegin {
                 start_time: _start_time,
@@ -58,9 +64,11 @@ impl TrainingCallback for Logger {
                 #[cfg(feature = "loss")]
                 {
                     log::info!(
-                        "Epoch {} - Loss: {} - Time: {:?} | {:?}",
+                        "Epoch {} - Loss: {:.6} - Time: {:.2?} S: {:.2?}, B: {:.2?}, L: {:.2?}",
                         stats.epoch + 1,
                         stats.loss,
+                        stats.total_elapsed,
+                        stats.shuffle_elapsed,
                         stats.backpropagation_elapsed,
                         stats.loss_elapsed
                     );
@@ -72,6 +80,8 @@ impl TrainingCallback for Logger {
             TrainingEvent::TrainingEnd {
                 end_time,
                 total_epochs,
+                training_dataset: _,
+                validation_dataset: _,
             } => {
                 log::info!("Finished training in {:?}s", end_time.as_secs());
                 log::info!("{}/s", total_epochs / end_time.as_secs() as usize);
@@ -94,7 +104,7 @@ impl LossCollector {
 }
 
 impl TrainingCallback for LossCollector {
-    fn on_event(&mut self, _nn: &NeuralNetwork, event: TrainingEvent) {
+    fn on_event(&mut self, _nn: &NeuralNetwork, event: &TrainingEvent) {
         if let TrainingEvent::EpochEnd { stats } = event {
             self.data.push((stats.epoch as f64, stats.loss));
         }
@@ -111,7 +121,7 @@ impl<'a> Callbacks<'a> {
 
     pub fn on_event(&mut self, nn: &NeuralNetwork, event: TrainingEvent) {
         if !self.0.is_empty() {
-            self.0.iter_mut().for_each(|it| it.on_event(nn, event));
+            self.0.iter_mut().for_each(|it| it.on_event(nn, &event));
         }
     }
 }

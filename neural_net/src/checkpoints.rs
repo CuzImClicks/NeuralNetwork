@@ -35,7 +35,7 @@ pub enum CheckpointStrategy<'a, T: AsRef<Path>> {
 }
 
 impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
-    fn on_event(&mut self, nn: &NeuralNetwork, event: TrainingEvent) {
+    fn on_event(&mut self, nn: &NeuralNetwork, event: &TrainingEvent) {
         match self {
             CheckpointStrategy::Percentage {
                 percentage,
@@ -136,6 +136,8 @@ impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
                 TrainingEvent::TrainingEnd {
                     end_time: _end_time,
                     total_epochs: _total_epochs,
+                    training_dataset: _,
+                    validation_dataset: _,
                 } => {
                     if !*save_on_training_end {
                         nn.save_checkpoint(
