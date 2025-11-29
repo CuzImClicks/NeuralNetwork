@@ -1,9 +1,10 @@
 #[cfg(feature = "gpu")]
-use cubecl::cube;
 use cubecl::prelude::*;
 use ndarray::Array2;
 use serde::{Deserialize, Serialize};
-use crate::{datasets::Float, gpu::gpu_tensor::GpuTensor, layers::Layer};
+use crate::datasets::Float;
+#[cfg(feature = "gpu")]
+use crate::{gpu::gpu_tensor::GpuTensor, layers::Layer};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TrainingData {
@@ -15,6 +16,7 @@ pub struct TrainingData {
     pub pre_activations: Vec<Array2<Float>>,
 }
 
+#[cfg(feature = "gpu")]
 #[derive(Debug)]
 pub struct GpuTrainingData<R: Runtime> {
     pub nabla_w: Vec<GpuTensor<R, Float>>,
@@ -25,6 +27,7 @@ pub struct GpuTrainingData<R: Runtime> {
     pub pre_activations: Vec<GpuTensor<R, Float>>,
 }
 
+#[cfg(feature = "gpu")]
 impl<R: Runtime> GpuTrainingData<R> {
     pub fn reset_gradient_buffers(&self, client: &ComputeClient<R::Server>, line_size: u8) {
         for t in self

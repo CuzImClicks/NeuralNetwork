@@ -1,15 +1,15 @@
 use crate::{
-    LINE_SIZE, datasets::Float, gpu::{gpu_operations::{add_inplace, apply_activation_function_inplace, matmul}, gpu_tensor::GpuTensor}, layers::{GpuLayer, Layer}, loss::LossFunction, metadata::Metadata, saving_and_loading::{Format, save_to_file}, training_data::TrainingData, training_events::{Callbacks, EpochStats, TrainingEvent}
+    datasets::Float, layers::Layer, loss::LossFunction, metadata::Metadata, saving_and_loading::{Format, save_to_file}, training_data::{TrainingData, reset_matrix}, training_events::{Callbacks, EpochStats, TrainingEvent}
 };
-use crate::training_data::{launch_accumulate_and_reset, reset_matrix};
-use anyhow::{Context, Result};
-use cubecl::{prelude::*, server::Allocation, std::tensor::TensorHandle};
-use log::info;
-use ndarray::{Array2, ArrayBase, ArrayView, ArrayView2, Data, Dimension, Ix2, RawData};
+#[cfg(feature = "gpu")]
+use crate::{LINE_SIZE, training_data::{launch_accumulate_and_reset, }, layers::GpuLayer, gpu::{gpu_operations::{add_inplace, apply_activation_function_inplace, matmul}, gpu_tensor::GpuTensor}};
+use anyhow::Result;
+use cubecl::prelude::*;
+use ndarray::{Array2, ArrayView, ArrayView2, Dimension, Ix2};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, mem, path::Path, process::exit, time::Instant};
+use std::{fmt::Display, path::Path, time::Instant};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NeuralNetwork {
@@ -162,8 +162,8 @@ impl NeuralNetwork {
                             loss,
                             loss_elapsed: epoch_start.elapsed()
                                 - (backpropagation_elapsed + shuffle_elapsed),
-                            backpropagation_elapsed: backpropagation_elapsed,
-                            shuffle_elapsed: shuffle_elapsed,
+                            backpropagation_elapsed,
+                            shuffle_elapsed,
                             total_elapsed: epoch_start.elapsed(),
                         },
                     },
@@ -361,6 +361,7 @@ impl NeuralNetwork {
         Ok(())
     }
     
+    #[cfg(feature = "gpu")]
     pub fn feedforward_gpu<R: Runtime>(&self, input: GpuTensor<R, Float>, device: &R::Device) -> Result<GpuTensor<R, Float>> {
         let client = R::client(&device);
         let num_layers = self.layers.len();
@@ -409,14 +410,4 @@ pub fn print_matrix<T: Display>(matrix: &ArrayView<T, Ix2>) {
         }
         println!();
     }
-}
-
-#[cfg(feature = "gpu")]
-#[cube(launch_unchecked)]
-pub fn raw_forward_pass(activation: Array<Line<Float>>, weights: Array<Line<Float>>) {
-    
-}
-
-pub fn launch_forward_pass<R: Runtime>(activation_buf: GpuTensor<R, Float>) {
-    
 }

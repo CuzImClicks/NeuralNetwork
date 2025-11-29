@@ -1,9 +1,12 @@
-use cubecl::{Runtime, server::Allocation};
 use ndarray::Array2;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gpu")]
+use cubecl::prelude::*;
 
-use crate::{activation::Activation, datasets::Float, gpu::gpu_tensor::GpuTensor};
+#[cfg(feature = "gpu")]
+use crate::gpu::gpu_tensor::GpuTensor;
+use crate::{activation::Activation, datasets::Float};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Layer {

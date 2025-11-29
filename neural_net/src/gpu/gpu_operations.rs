@@ -1,6 +1,9 @@
+#[cfg(feature = "gpu")]
 use cubecl::prelude::*;
 
-use crate::{LINE_SIZE, activation::Activation, datasets::Float, gpu::gpu_tensor::GpuTensor, loss::LossFunction};
+use crate::{datasets::Float};
+#[cfg(feature = "gpu")]
+use crate::{LINE_SIZE, activation::Activation, gpu::gpu_tensor::GpuTensor};
 
 // a = [M * K]
 // b = [K, N]
@@ -170,6 +173,7 @@ pub fn raw_tanh(a: &mut Array<Float>) {
 
 #[cfg(feature = "gpu")]
 pub fn apply_activation_function_inplace<R: Runtime>(a: &GpuTensor<R, Float>, activation: &Activation, client: &ComputeClient<R::Server>, line_size: u8) {
+
     let num_elems: usize = a.shape.iter().product::<usize>();
     let lines = (num_elems + line_size as usize - 1) / line_size as usize;
     

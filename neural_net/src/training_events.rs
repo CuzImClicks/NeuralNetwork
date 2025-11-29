@@ -52,7 +52,7 @@ impl TrainingCallback for Logger {
                 start_time: _start_time,
                 total_epochs,
             } => {
-                log::info!("Started training for `{}` epochs", total_epochs);
+                log::info!("Started training for `{total_epochs}` epochs");
             }
             TrainingEvent::EpochEnd { stats } => {
                 #[cfg(not(feature = "loss"))]

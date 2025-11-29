@@ -71,7 +71,7 @@ impl<R: Runtime, F: Float + CubeElement> GpuTensor<R, F> {
         );
         let strides = compact_strides(&shape);
         
-        Self { data: allocation, shape: shape, strides: strides, _r: PhantomData, _f: PhantomData }
+        Self { data: allocation, shape, strides, _r: PhantomData, _f: PhantomData }
     }
     
     pub fn from_slice(shape: Vec<usize>, data: &[F], client: &ComputeClient<R::Server>) -> Self {

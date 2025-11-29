@@ -46,7 +46,7 @@ pub fn save_to_file<T: Serialize>(path: impl AsRef<Path>, value: &T, fmt: Format
     if path.extension().is_none_or(|it| it != fmt.extension()) {
         bail!("Trying to create file `{path:?}` with wrong extension for data type `{fmt:?}`")
     }
-    let mut f = File::create(path).with_context(|| format!("creating {:?}", path))?;
+    let mut f = File::create(path).with_context(|| format!("creating {path:?}"))?;
 
     f.write_all(&bytes)?;
 

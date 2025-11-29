@@ -1,9 +1,11 @@
-use cubecl::{Runtime, client::ComputeClient};
+
+#[cfg(feature = "gpu")]
+use cubecl::prelude::*;
 
 #[cfg(feature = "gpu")]
 use crate::{LINE_SIZE, datasets::Float, gpu::{gpu_operations::{add_inplace, apply_activation_function_inplace, copy_into, matmul_into}, gpu_tensor::GpuTensor}, layers::GpuLayer, neural_net::NeuralNetwork, training_data::GpuTrainingData};
 
-
+#[cfg(feature = "gpu")]
 pub(crate) fn backpropagation_gpu<R: Runtime>(gpu_layers: &[GpuLayer<R>], input: &GpuTensor<R, Float>, training_data: &mut GpuTrainingData<R>, client: &ComputeClient<R::Server>) {
     training_data.activations[0] = input.clone();
     for (i, layer) in gpu_layers.iter().enumerate() {

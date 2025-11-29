@@ -48,13 +48,12 @@ impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
                         nn.save_checkpoint(
                             folder
                                 .as_ref()
-                                .join(format!("checkpoint_{}.json", completion_percentage)),
+                                .join(format!("checkpoint_{completion_percentage}.json")),
                             Format::Json,
                         )
                         .unwrap();
                         warn!(
-                            "Saved percentage based checkpoint at {}% of finished training.",
-                            completion_percentage
+                            "Saved percentage based checkpoint at {completion_percentage}% of finished training."
                         )
                     }
                 }
@@ -86,7 +85,7 @@ impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
                             Format::Json,
                         )
                         .unwrap();
-                        warn!("Saved time based checkpoint after {:?}", duration_since)
+                        warn!("Saved time based checkpoint after {duration_since:?}")
                     }
                 }
                 TrainingEvent::TrainingBegin {
@@ -119,7 +118,7 @@ impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
                                 Format::Json,
                             )
                             .unwrap();
-                            warn!("Saved checkpoint due to lowest loss `{:?}`", lowest_loss)
+                            warn!("Saved checkpoint due to lowest loss `{lowest_loss:?}`")
                         }
                     }
                 }
@@ -139,13 +138,12 @@ impl<'a, T: AsRef<Path>> TrainingCallback for CheckpointStrategy<'a, T> {
                 } => {
                     if !*save_on_training_end {
                         nn.save_checkpoint(
-                            folder.as_ref().join(format!("checkpoint_{}.json", epoch)),
+                            folder.as_ref().join(format!("checkpoint_{epoch}.json")),
                             Format::Json,
                         )
                         .unwrap();
                         warn!(
-                            "Saved checkpoint at the end of training with lowest loss `{:?}`",
-                            lowest_loss
+                            "Saved checkpoint at the end of training with lowest loss `{lowest_loss:?}`"
                         )
                     }
                 }
