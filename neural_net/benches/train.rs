@@ -9,6 +9,7 @@ use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicUsize;
 
+
 fn bench_train(c: &mut Criterion) {
     let mut group = c.benchmark_group("train");
     let panic_count = AtomicUsize::new(0);
@@ -63,5 +64,7 @@ fn bench_train(c: &mut Criterion) {
     );
 }
 
+
 criterion_group!(benches, bench_train);
 criterion_main!(benches);
+

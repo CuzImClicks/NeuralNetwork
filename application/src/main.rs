@@ -38,16 +38,16 @@ fn main() -> Result<()> {
     let mut n = load_from_file::<NeuralNetwork>(Path::new("./heart2/heart2.json"), Format::Json)
         .unwrap_or_else(|_| {
             NeuralNetwork::new(vec![
-                default_tanh(2, 8),
-                default_relu(8, 4),
-                default_relu(4, 8),
-                default_relu(8, 1),
+                default_relu(2, 16),
+                default_relu(16, 16),
+                default_relu(16, 16),
+                default_relu(16, 1),
                 default_sigmoid(1, 1),
             ])
         });
 
     let num_epochs: usize = 2308;
-    let dataset = gen_heart_dataset(-16.0, 16.0, 0.05); //gen_color_dataset(-15.0, 15.0, 0.1); //gen_rainbow_dataset(-20.0, 20.0, 0.1); //gen_heart_dataset(-16.0, 16.0, 0.1); // datasets::gen_circle_dataset(0.0, 5.0, 0.01); //
+    let dataset = gen_heart_dataset(-16.0, 16.0, 0.1); //gen_color_dataset(-15.0, 15.0, 0.1); //gen_rainbow_dataset(-20.0, 20.0, 0.1); //gen_heart_dataset(-16.0, 16.0, 0.1); // datasets::gen_circle_dataset(0.0, 5.0, 0.01); //
     let mut loss_collector = LossCollector::new(num_epochs);
     let mut logger = Logger {};
     let mut checkpoint_strategy = CheckpointStrategy::Percentage {

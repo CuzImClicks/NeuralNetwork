@@ -1,9 +1,9 @@
-use cubecl::server::Allocation;
+use cubecl::{Runtime, server::Allocation};
 use ndarray::Array2;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::{activation::Activation, datasets::Float};
+use crate::{activation::Activation, datasets::Float, gpu::gpu_tensor::GpuTensor};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Layer {
@@ -12,10 +12,11 @@ pub struct Layer {
     pub activation: Activation,
 }
 
+#[cfg(feature = "gpu")]
 #[derive(Debug)]
-pub struct GpuLayer {
-    pub weights: Allocation,
-    pub biases: Allocation,
+pub struct GpuLayer<R: Runtime> {
+    pub weights: GpuTensor<R, Float>,
+    pub biases: GpuTensor<R, Float>,
     pub activation: Activation,
 }
 

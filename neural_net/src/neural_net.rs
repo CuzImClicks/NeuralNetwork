@@ -1,10 +1,11 @@
 use crate::{
-    datasets::Float, layers::{GpuLayer, Layer}, loss::LossFunction, metadata::Metadata, saving_and_loading::{Format, save_to_file}, training_events::{Callbacks, EpochStats, TrainingEvent}
+    LINE_SIZE, datasets::Float, gpu::{gpu_operations::{add_inplace, apply_activation_function_inplace, matmul}, gpu_tensor::GpuTensor}, layers::{GpuLayer, Layer}, loss::LossFunction, metadata::Metadata, saving_and_loading::{Format, save_to_file}, training_data::TrainingData, training_events::{Callbacks, EpochStats, TrainingEvent}
 };
+use crate::training_data::{launch_accumulate_and_reset, reset_matrix};
 use anyhow::{Context, Result};
-use cubecl::prelude::*;
+use cubecl::{prelude::*, server::Allocation, std::tensor::TensorHandle};
 use log::info;
-use ndarray::{Array2, ArrayView, ArrayView2, Ix2};
+use ndarray::{Array2, ArrayBase, ArrayView, ArrayView2, Data, Dimension, Ix2, RawData};
 use rand::{Rng, prelude::SliceRandom};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -14,16 +15,6 @@ use std::{fmt::Display, mem, path::Path, process::exit, time::Instant};
 pub struct NeuralNetwork {
     pub layers: Vec<Layer>,
     pub metadata: Option<Metadata>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct TrainingData {
-    nabla_w: Vec<Array2<Float>>,
-    nabla_b: Vec<Array2<Float>>,
-    delta_nabla_w: Vec<Array2<Float>>,
-    delta_nabla_b: Vec<Array2<Float>>,
-    activations: Vec<Array2<Float>>,
-    pre_activations: Vec<Array2<Float>>,
 }
 
 impl NeuralNetwork {
@@ -123,7 +114,7 @@ impl NeuralNetwork {
 
         #[cfg(feature = "loss")]
         let validation_pairs = {
-            let val_size = ((data.len() as Float * 0.1).ceil() as usize).max(1);
+            let val_size = ((data.len() as Float * 0.1).ceil() as usize).clamp(1, 100);
             data.drain(..val_size).collect::<Vec<_>>()
         };
         #[cfg(feature = "loss")]
@@ -155,7 +146,7 @@ impl NeuralNetwork {
                 callbacks.on_event(TrainingEvent::EpochEnd {
                     stats: EpochStats {
                         epoch,
-                        duration: elapsed,
+                        duration: epoch_start.elapsed(),
                         .._
                     },
                 })
@@ -306,19 +297,22 @@ impl NeuralNetwork {
         save_to_file(path, self, format)
     }
 
+    #[cfg(feature = "gpu")]
     pub fn train_gpu<R: Runtime>(
         &mut self,
-        raw_training_data: Vec<(Array2<f32>, Array2<f32>)>,
+        raw_training_data: Vec<(Array2<Float>, Array2<Float>)>,
         epochs: usize,
         batches_per_epoch: usize,
         batch_size: usize,
-        learning_rate: f32,
-        lambda: f32,
+        learning_rate: Float,
+        lambda: Float,
         rng: &mut impl Rng,
         loss_function: LossFunction,
         mut callbacks: Callbacks,
         device: &R::Device,
     ) -> Result<()> {
+        use crate::{gpu::gpu_tensor::GpuTensor, training_data::GpuTrainingData};
+
         let client = R::client(&device);
 
         let mut data = raw_training_data;
@@ -326,71 +320,80 @@ impl NeuralNetwork {
 
         #[cfg(feature = "loss")]
         let validation_pairs = {
-            let val_size = ((data.len() as f64 * 0.1).ceil() as usize).max(1);
+            let val_size = ((data.len() as Float * 0.1).ceil() as usize).max(1);
             data.drain(..val_size).collect::<Vec<_>>()
         };
         #[cfg(feature = "loss")]
         let views = validation_pairs
             .iter()
             .map(|(i, o)| (i.view(), o.view()))
-            .collect::<Vec<(ArrayView2<f32>, ArrayView2<f32>)>>();
+            .collect::<Vec<(ArrayView2<Float>, ArrayView2<Float>)>>();
 
-        let first = data.first().context("Dataset is empty")?;
-        let (n, x_i, y_i) = (data.len(), first.0.dim().0, first.0.dim().1);
-        let (x_o, y_o) = (first.1.dim().0, first.1.dim().1);
-
-        let mut inputs_flat: Vec<f32> = Vec::with_capacity(n * x_i * y_i);
-        let mut outputs_flat: Vec<f32> = Vec::with_capacity(n * x_o * y_o);
-
-        data.iter().for_each(|(i, o)| {
-            inputs_flat.extend(i.iter().copied());
-            outputs_flat.extend(o.iter().copied());
-        });
-
-        let inputs_flat_bytes = f32::as_bytes(&inputs_flat);
-        let shape = [n, x_i, y_i];
-        let inputs_tensor =
-            client.create_tensor_from_slice(inputs_flat_bytes, &shape, mem::size_of::<f32>());
-
-        let output_flat_bytes = f32::as_bytes(&outputs_flat);
-        let shape = [n, x_o, y_o];
-        let outputs_tensor =
-            client.create_tensor_from_slice(output_flat_bytes, &shape, mem::size_of::<f32>());
+        let gpu_data: Vec<(GpuTensor<R, Float>, GpuTensor<R, Float>)> = data.iter().map(|(i, o)| {
+            (GpuTensor::<R, Float>::copy(i, &client), GpuTensor::<R, Float>::copy(o, &client))
+        }).collect();
 
         let gpu_layers = self.get_weights_as_tensors::<R>(&device)?;
+    
+        let mut training_data = GpuTrainingData::<R>::from_layers(&self.layers, &client);
+        
+        let mut indices: Vec<usize> = (0..data.len()).collect::<Vec<usize>>();
+
+        for epoch in 0..epochs {
+            let epoch_start = Instant::now();
+            indices.shuffle(rng);
+            let shuffle_elapsed = epoch_start.elapsed();
+
+            for batch in indices.chunks(batch_size).take(batches_per_epoch) {
+                
+                
+                
+                for (nw, dnw) in training_data.nabla_w.iter().zip(training_data.delta_nabla_w.iter()) {
+                    launch_accumulate_and_reset(&client, nw, dnw, LINE_SIZE);
+                }
+                
+                for (nb, dnb) in training_data.nabla_b.iter().zip(training_data.delta_nabla_b.iter()) {
+                    launch_accumulate_and_reset(&client, nb, dnb, LINE_SIZE);
+                }    
+            }
+        }
 
         Ok(())
     }
-
-    pub fn get_weights_as_tensors<R: Runtime>(&self, device: &R::Device) -> Result<Vec<GpuLayer>> {
+    
+    pub fn feedforward_gpu<R: Runtime>(&self, input: GpuTensor<R, Float>, device: &R::Device) -> Result<GpuTensor<R, Float>> {
         let client = R::client(&device);
-        let mut gpu_layers: Vec<GpuLayer> = Vec::with_capacity(self.layers.len());
+        let num_layers = self.layers.len();
+        
+        let gpu_layers: Vec<GpuLayer<R>> = self.get_weights_as_tensors(device)?;
+        
+        let mut result: Vec<GpuTensor<R, Float>> = Vec::with_capacity(num_layers);
+        result.push(input);
+        
+        for (i, layer) in &mut gpu_layers.iter().enumerate() {
+            let z = matmul(&layer.weights, &result[i], &client, LINE_SIZE);
+            add_inplace(&z, &layer.biases, &client, LINE_SIZE);
+            apply_activation_function_inplace(&z, &layer.activation, &client, LINE_SIZE);
+            result.push(z);
+        }
+        
+        
+        Ok(result.last().unwrap().clone())
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn get_weights_as_tensors<R: Runtime>(&self, device: &R::Device) -> Result<Vec<GpuLayer<R>>> {
+        let client = R::client(&device);
+        let mut gpu_layers: Vec<GpuLayer<R>> = Vec::with_capacity(self.layers.len());
 
         for layer in &self.layers {
-            let (rows, cols) = (layer.weights.dim().0, layer.weights.dim().1);
-            let mut weights_flat: Vec<f32> = Vec::with_capacity(rows * cols);
-            weights_flat.extend(layer.weights.iter().map(|w| *w as f32));
-            let weights_bytes = f32::as_bytes(&weights_flat);
-            let weights_bytes_shape = [rows, cols];
-            let weight_allocation = client.create_tensor_from_slice(
-                weights_bytes,
-                &weights_bytes_shape,
-                mem::size_of::<f32>(),
-            );
+            let weights = GpuTensor::<R, Float>::copy(&layer.weights, &client);
 
-            let (rows, cols) = (layer.biases.dim().0, layer.biases.dim().1);
-            let mut biases_flat: Vec<f32> = Vec::with_capacity(rows * cols);
-            biases_flat.extend(layer.biases.iter().map(|w| *w as f32));
-            let biases_bytes = f32::as_bytes(&biases_flat);
-            let biases_bytes_shape = [rows, cols];
-            let biases_allocation = client.create_tensor_from_slice(
-                biases_bytes,
-                &biases_bytes_shape,
-                mem::size_of::<f32>(),
-            );
+            let biases = GpuTensor::<R, Float>::copy(&layer.biases, &client);
+            
             gpu_layers.push(GpuLayer {
-                weights: weight_allocation,
-                biases: biases_allocation,
+                weights,
+                biases,
                 activation: layer.activation.clone(),
             });
         }
@@ -408,9 +411,12 @@ pub fn print_matrix<T: Display>(matrix: &ArrayView<T, Ix2>) {
     }
 }
 
-#[inline(always)]
-pub fn reset_matrix<O: num_traits::Zero + Copy>(i: &mut [Array2<O>]) {
-    for x in i.iter_mut() {
-        x.fill(O::zero());
-    }
+#[cfg(feature = "gpu")]
+#[cube(launch_unchecked)]
+pub fn raw_forward_pass(activation: Array<Line<Float>>, weights: Array<Line<Float>>) {
+    
+}
+
+pub fn launch_forward_pass<R: Runtime>(activation_buf: GpuTensor<R, Float>) {
+    
 }

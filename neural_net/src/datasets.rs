@@ -3,8 +3,19 @@ use std::f32::consts::TAU;
 
 use ndarray::{Array2, arr2};
 
-#[cfg(feature = "f64")]
-pub type Float = f64;
+//#[cfg(any(
+//    all(feature = "f32", feature = "f64"),
+//    all(feature = "f32", feature = "f16"),
+//    all(feature = "f64", feature = "f16"),
+//))]
+//compile_error!("Features 'f32', 'f64', and 'f16' are mutually exclusive. Enable exactly one.");
+
+// None enabled → hard error
+#[cfg(not(any(feature = "f32", feature = "f64", feature = "f16")))]
+compile_error!("You must enable exactly one of the features: 'f32', 'f64', or 'f16'.");
+
+//#[cfg(feature = "f64")]
+//pub type Float = f64;
 
 #[cfg(feature = "f32")]
 pub type Float = f32;
