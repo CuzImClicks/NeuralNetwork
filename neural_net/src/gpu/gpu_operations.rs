@@ -32,7 +32,7 @@ pub fn matmul<R: Runtime>(a: &GpuTensor<R, Float>, b: &GpuTensor<R, Float>, clie
     let K = a.shape[1] as u32;
     
     let N = b.shape[1] as u32;
-    let output_buf = GpuTensor::<R, Float>::empty(vec![M as usize, N as usize], &client);
+    let output_buf = GpuTensor::<R, Float>::empty(vec![M as usize, N as usize], client);
     
     let num_elems: usize = output_buf.shape.iter().product::<usize>();
     let lines = (num_elems + line_size as usize - 1) / line_size as usize;
@@ -40,7 +40,7 @@ pub fn matmul<R: Runtime>(a: &GpuTensor<R, Float>, b: &GpuTensor<R, Float>, clie
     let b_arg = b.as_array_arg(1);
     
     unsafe {
-        raw_matmul::launch_unchecked(&client,
+        raw_matmul::launch_unchecked(client,
         CubeCount::Static(1, 1, 1),
         CubeDim::new(lines as u32, 1, 1),
         a_arg, b_arg, 
@@ -64,7 +64,7 @@ pub fn matmul_into<R: Runtime>(a: &GpuTensor<R, Float>,b: &GpuTensor<R, Float>, 
     let b_arg = b.as_array_arg(1);
     
     unsafe {
-        raw_matmul::launch_unchecked(&client,
+        raw_matmul::launch_unchecked(client,
         CubeCount::Static(1, 1, 1),
         CubeDim::new(lines as u32, 1, 1),
         a_arg, b_arg,
@@ -87,7 +87,7 @@ pub fn add_elementwise<R: Runtime>(a: &GpuTensor<R, Float>, b: &GpuTensor<R, Flo
     let M = a.shape[0] as u32;
     let N = a.shape[1] as u32;
     
-    let output_buf = GpuTensor::<R, Float>::empty(vec![M as usize, N as usize], &client);
+    let output_buf = GpuTensor::<R, Float>::empty(vec![M as usize, N as usize], client);
     
     let num_elems: usize = output_buf.shape.iter().product::<usize>();
     let lines = (num_elems + line_size as usize - 1) / line_size as usize;
@@ -95,7 +95,7 @@ pub fn add_elementwise<R: Runtime>(a: &GpuTensor<R, Float>, b: &GpuTensor<R, Flo
     let b_arg = b.as_array_arg(1);
     
     unsafe {
-        raw_elementwise_add::launch_unchecked(&client,
+        raw_elementwise_add::launch_unchecked(client,
         CubeCount::Static(1, 1, 1),
         CubeDim::new(lines as u32, 1, 1),
         a_arg, b_arg, 
@@ -127,7 +127,7 @@ pub fn add_inplace<R: Runtime>(a: &GpuTensor<R, Float>, b: &GpuTensor<R, Float>,
     let b_arg = b.as_array_arg(1);
     
     unsafe {
-        raw_add_inplace::launch_unchecked(&client,
+        raw_add_inplace::launch_unchecked(client,
         CubeCount::Static(1, 1, 1),
         CubeDim::new(lines as u32, 1, 1),
         a_arg, b_arg,
@@ -179,16 +179,16 @@ pub fn apply_activation_function_inplace<R: Runtime>(a: &GpuTensor<R, Float>, ac
     
     match activation {
         Activation::Sigmoid => unsafe {
-            raw_sigmoid::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_sigmoid::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::ReLU =>  unsafe {
-            raw_relu::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_relu::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::LeakyReLU =>  unsafe {
-            raw_leaky_relu::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_leaky_relu::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::Tanh =>  unsafe {
-            raw_tanh::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_tanh::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::Linear => {},
     }
@@ -245,16 +245,16 @@ pub fn apply_activation_function_derivative_inplace<R: Runtime>(a: &GpuTensor<R,
     
     match activation {
         Activation::Sigmoid => unsafe {
-            raw_sigmoid_derivative::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_sigmoid_derivative::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::ReLU =>  unsafe {
-            raw_relu_derivative::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_relu_derivative::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::LeakyReLU =>  unsafe {
-            raw_leaky_relu_derivative::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_leaky_relu_derivative::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::Tanh =>  unsafe {
-            raw_tanh_derivative::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
+            raw_tanh_derivative::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(LINE_SIZE))
         },
         Activation::Linear => {},
     }
@@ -305,6 +305,6 @@ pub fn copy_into<R: Runtime>(a: &GpuTensor<R, Float>, b: &GpuTensor<R, Float>, c
     let lines = (num_elems + line_size as usize - 1) / line_size as usize;
     
     unsafe {
-        raw_copy_into::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(line_size), b.as_array_arg(line_size));
+        raw_copy_into::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), a.as_array_arg(line_size), b.as_array_arg(line_size));
     }
 }

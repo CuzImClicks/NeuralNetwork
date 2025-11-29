@@ -1,4 +1,5 @@
 #[deny(clippy::nursery)]
+#[allow(non_snake_case)]
 pub mod activation;
 pub mod checkpoints;
 pub mod datasets;

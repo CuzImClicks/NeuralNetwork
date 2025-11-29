@@ -43,37 +43,37 @@ impl<R: Runtime> GpuTrainingData<R> {
     pub fn from_layers(layers: &[Layer], client: &ComputeClient<R::Server>) -> Self {
         let nabla_w: Vec<GpuTensor<R, Float>> = layers.iter().map(|l| {
             let shape = l.weights.shape();
-            GpuTensor::zeroes(shape.to_vec(), &client)
+            GpuTensor::zeroes(shape.to_vec(), client)
         }).collect();
         
         let delta_nabla_w: Vec<GpuTensor<R, Float>> = layers.iter().map(|l| {
             let shape = l.weights.shape();
-            GpuTensor::zeroes(shape.to_vec(), &client)
+            GpuTensor::zeroes(shape.to_vec(), client)
         }).collect();
         
         let nabla_b: Vec<GpuTensor<R, Float>> = layers.iter().map(|l| {
             let shape = l.biases.shape();
-            GpuTensor::zeroes(shape.to_vec(), &client)
+            GpuTensor::zeroes(shape.to_vec(), client)
         }).collect();
         
         let delta_nabla_b: Vec<GpuTensor<R, Float>> = layers.iter().map(|l| {
             let shape = l.biases.shape();
-            GpuTensor::zeroes(shape.to_vec(), &client)
+            GpuTensor::zeroes(shape.to_vec(), client)
         }).collect();
         
         let mut activations: Vec<GpuTensor<R, Float>> = layers.iter().map(|l| {
             let dim = l.weights.dim();
-            GpuTensor::zeroes(vec![dim.1, 1], &client)
+            GpuTensor::zeroes(vec![dim.1, 1], client)
         }).collect();
         
-        activations.push(GpuTensor::zeroes(vec![layers.last().unwrap().biases.dim().0, 1], &client));
+        activations.push(GpuTensor::zeroes(vec![layers.last().unwrap().biases.dim().0, 1], client));
         
         let mut pre_activations: Vec<GpuTensor<R, Float>> = layers.iter().map(|l| {
             let dim = l.weights.dim();
-            GpuTensor::zeroes(vec![dim.1, 1], &client)
+            GpuTensor::zeroes(vec![dim.1, 1], client)
         }).collect();
         
-        pre_activations.push(GpuTensor::zeroes(vec![layers.last().unwrap().biases.dim().0, 1], &client));
+        pre_activations.push(GpuTensor::zeroes(vec![layers.last().unwrap().biases.dim().0, 1], client));
         
         GpuTrainingData {
             nabla_w,
@@ -111,7 +111,7 @@ pub fn launch_reset<R: Runtime>(client: &ComputeClient<R::Server>, t: &GpuTensor
     let lines = (num_elems + line_size as usize - 1) / line_size as usize;
     let arg = t.as_array_arg(line_size);
     unsafe {
-        raw_reset_array_gpu::launch_unchecked(&client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), arg);
+        raw_reset_array_gpu::launch_unchecked(client, CubeCount::Static(1, 1, 1), CubeDim::new(lines as u32, 1, 1), arg);
     }
 }
 

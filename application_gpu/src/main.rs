@@ -1,10 +1,8 @@
 use anyhow::Result;
-use cubecl::{cuda::{CudaDevice, CudaRuntime}, prelude::*, wgpu::{WgpuDevice, WgpuRuntime}};
+use cubecl::{prelude::*, wgpu::{WgpuDevice, WgpuRuntime}};
 use log::LevelFilter;
-use neural_net::{checkpoints::CheckpointStrategy, datasets::{Float, gen_heart_dataset}, gpu::{gpu_operations::matmul, gpu_tensor::GpuTensor}, layers::{default_leaky_relu, default_sigmoid}, neural_net::{NeuralNetwork, print_matrix}, saving_and_loading::load_from_file, training_events::{Callbacks, Logger, LossCollector}};
-use rand::rng;
+use neural_net::{datasets::{Float, gen_heart_dataset}, gpu::gpu_tensor::GpuTensor, layers::{default_leaky_relu, default_sigmoid}, neural_net::{NeuralNetwork, print_matrix}, saving_and_loading::load_from_file};
 use std::io::Write;
-use neural_net::loss::LossFunction::BinaryCrossEntropy;
 
 
 fn main() -> Result<()>{
@@ -26,7 +24,7 @@ fn main() -> Result<()>{
         .init();
     
     
-    let mut n = load_from_file("./", neural_net::saving_and_loading::Format::Json).unwrap_or_else(|_| {
+    let n = load_from_file("./", neural_net::saving_and_loading::Format::Json).unwrap_or_else(|_| {
         NeuralNetwork::new(vec![
             default_leaky_relu(2, 16),
             default_leaky_relu(16, 8),
