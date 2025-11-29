@@ -292,6 +292,7 @@ pub const E_FLOAT: Float = {
 
 
 /// Copies `b` into `a`
+#[cfg(feature = "gpu")]
 #[cube( launch_unchecked)]
 pub fn raw_copy_into(a: &mut Array<Line<Float>>, b: Array<Line<Float>>) {
     if ABSOLUTE_POS < a.len() {
