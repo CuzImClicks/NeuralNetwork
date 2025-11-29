@@ -1,9 +1,9 @@
 use std::{f64, path::Path, vec};
 
 use anyhow::{Result, anyhow};
-use ndarray::{Axis, ViewRepr, array};
+use ndarray::{Axis, array};
 use neural_net::{datasets::Float, neural_net::NeuralNetwork};
-use plotters::{element::BackendCoordOnly, prelude::*};
+use plotters::prelude::*;
 
 /// Linear interpolation between two RGBColor endpoints.
 fn interpolate_color(low: &RGBColor, high: &RGBColor, t: Float) -> RGBColor {
@@ -303,7 +303,7 @@ pub fn visualize_neural_network<P: AsRef<Path>>(
         y += y_step;
     }
 
-    x += x_step as i32;
+    x += x_step;
 
     let mut last_layer_y = top_pad
         + radius
@@ -331,10 +331,10 @@ pub fn visualize_neural_network<P: AsRef<Path>>(
                 root.draw(&PathElement::new(
                     vec![
                         (
-                            (x - x_step + radius) as i32,
+                            ((x - x_step + radius)),
                             (last_layer_y + (y_step * i as i32)),
                         ),
-                        ((x - radius) as i32, (y) as i32),
+                        (((x - radius)), (y)),
                     ],
                     ShapeStyle::from(grayscale_between_bounds(min_weight, max_weight, *weight)),
                 ))?;
@@ -344,7 +344,7 @@ pub fn visualize_neural_network<P: AsRef<Path>>(
         last_layer_y = top_pad
             + radius
             + (usable_h - radius - (layer.weights.len_of(Axis(0)) as i32 * y_step)) / 2;
-        x += x_step as i32;
+        x += x_step;
     }
 
     root.present()?;
@@ -372,8 +372,7 @@ pub fn weight_histogram<P: AsRef<Path>>(nn: &NeuralNetwork, path: P) -> Result<(
     let mut flattened: Vec<_> = nn
         .layers
         .iter()
-        .map(|it| it.weights.flatten())
-        .flatten()
+        .flat_map(|it| it.weights.flatten())
         .collect();
 
     flattened.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -396,7 +395,7 @@ pub fn weight_histogram<P: AsRef<Path>>(nn: &NeuralNetwork, path: P) -> Result<(
         .y_label_area_size(35)
         .build_cartesian_2d(
             min_weight..max_weight,
-            0_usize..(*amounts.iter().max().unwrap() + 1) as usize,
+            0_usize..(*amounts.iter().max().unwrap() + 1),
         )?;
 
     chart.configure_mesh().draw()?;
@@ -406,8 +405,8 @@ pub fn weight_histogram<P: AsRef<Path>>(nn: &NeuralNetwork, path: P) -> Result<(
         let x1 = (min_weight + (i + 1) as Float * x_step).min(max_weight);
         let y0 = 0;
         let y1 = v;
-        let bar = Rectangle::new([(x0, y0), (x1, *y1)], RED.filled());
-        bar
+        
+        Rectangle::new([(x0, y0), (x1, *y1)], RED.filled())
     }))?;
 
     Ok(())

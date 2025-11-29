@@ -1,12 +1,12 @@
 use std::path::Path;
-use std::{f64, fs};
+use std::fs;
 
 use crate::visualization::{plot_heatmap, plot_line, visualize_neural_network, weight_histogram};
 use anyhow::Result;
 use log::LevelFilter;
 use neural_net::checkpoints::CheckpointStrategy;
 use neural_net::datasets::{Float, gen_heart_dataset};
-use neural_net::layers::{default_leaky_relu, default_relu, default_sigmoid, default_tanh};
+use neural_net::layers::{default_relu, default_sigmoid};
 use neural_net::loss::LossFunction;
 use neural_net::neural_net::NeuralNetwork;
 use neural_net::saving_and_loading::{Format, load_from_file, save_to_file};
